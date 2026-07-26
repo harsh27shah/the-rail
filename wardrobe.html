@@ -1,0 +1,831 @@
+<div id="app">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    #app {
+      --ground: #E6E4DD;
+      --card: #F7F6F2;
+      --ink: #1A1A18;
+      --muted: #7A776E;
+      --line: #C9C6BC;
+      --accent: #2B4CD4;
+      --accent-soft: #E0E4F7;
+
+      background: var(--ground);
+      color: var(--ink);
+      font-family: 'Archivo', system-ui, sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app *, #app *::before, #app *::after { box-sizing: border-box; }
+
+    /* ---------- top bar ---------- */
+    .bar {
+      display: flex; align-items: baseline; gap: 16px;
+      padding: 18px 24px 14px;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .wordmark {
+      font-family: 'Anton', sans-serif;
+      font-size: 26px; letter-spacing: 0.02em;
+      text-transform: uppercase; line-height: 1;
+    }
+    .wordmark span { color: var(--accent); }
+    .bar-spacer { flex: 1 1 auto; }
+
+    .btn {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
+      padding: 9px 16px; border: 1px solid var(--ink);
+      background: var(--ink); color: var(--ground);
+      cursor: pointer; border-radius: 0;
+      transition: background .15s, color .15s;
+    }
+    .btn:hover { background: var(--accent); border-color: var(--accent); }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.small { padding: 7px 11px; font-size: 10px; border-color: var(--line); color: var(--muted); }
+    .btn.small:hover { border-color: var(--ink); color: var(--ground); }
+    .btn.ghost:hover { background: var(--ink); color: var(--ground); }
+    .btn:focus-visible, .chip:focus-visible, input:focus-visible,
+    select:focus-visible, textarea:focus-visible, .card:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    /* ---------- data strip ---------- */
+    .strip {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--muted);
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--line);
+      display: flex; gap: 22px; flex-wrap: wrap; align-items: center;
+    }
+    .strip b { color: var(--ink); font-weight: 700; }
+    .swatch-row { display: inline-flex; gap: 3px; vertical-align: middle; }
+    .swatch { width: 11px; height: 11px; border: 1px solid rgba(0,0,0,.18); }
+
+    /* ---------- filter rail ---------- */
+    .rail {
+      display: flex; gap: 8px; padding: 14px 24px;
+      overflow-x: auto; border-bottom: 1px solid var(--line);
+      scrollbar-width: thin;
+    }
+    .chip {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 7px 13px; white-space: nowrap;
+      border: 1px solid var(--line); background: transparent;
+      color: var(--muted); cursor: pointer;
+      transition: all .15s;
+    }
+    .chip:hover { border-color: var(--ink); color: var(--ink); }
+    .chip[aria-pressed="true"] {
+      background: var(--accent); border-color: var(--accent); color: #fff;
+    }
+    .search {
+      margin-left: auto; flex: 0 0 auto;
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      padding: 7px 11px; border: 1px solid var(--line);
+      background: var(--card); color: var(--ink); min-width: 150px;
+    }
+
+    /* ---------- grid ---------- */
+    .grid {
+      display: grid; gap: 22px; padding: 26px 24px 80px;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    }
+
+    .card {
+      position: relative; cursor: pointer;
+      background: transparent; border: none; padding: 0;
+      text-align: left; font: inherit; color: inherit;
+      transition: transform .22s cubic-bezier(.2,.8,.3,1);
+    }
+    .card:hover, .card:focus-visible { transform: translateY(-6px); }
+
+    .frame {
+      position: relative; aspect-ratio: 3/4; overflow: hidden;
+      background: var(--card); border: 1px solid var(--line);
+    }
+    .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .frame.empty::after {
+      content: '—'; position: absolute; inset: 0;
+      display: grid; place-items: center; color: var(--line); font-size: 28px;
+    }
+
+    /* the swing tag — signature element */
+    .tag {
+      position: absolute; top: 10px; right: 10px;
+      background: var(--card); border: 1px solid var(--ink);
+      padding: 20px 10px 9px 10px; min-width: 76px;
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.7;
+      transform-origin: 50% 8px;
+      transform: rotate(-4deg) scale(.82); opacity: 0;
+      transition: transform .3s cubic-bezier(.2,.8,.3,1), opacity .2s;
+      pointer-events: none;
+    }
+    .tag::before { /* punched hole */
+      content: ''; position: absolute; top: 7px; left: 50%;
+      width: 7px; height: 7px; margin-left: -3.5px;
+      border: 1px solid var(--ink); border-radius: 50%;
+    }
+    .card:hover .tag, .card:focus-visible .tag {
+      transform: rotate(2.5deg) scale(1); opacity: 1;
+    }
+    .tag .k { color: var(--muted); }
+
+    .meta { padding-top: 10px; }
+    .meta .name {
+      font-size: 13.5px; font-weight: 500; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .meta .sub {
+      font-family: 'Space Mono', monospace; font-size: 10px;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--muted); margin-top: 4px;
+    }
+
+    /* ---------- empty state ---------- */
+    .empty-state {
+      grid-column: 1 / -1; padding: 90px 20px; text-align: center;
+    }
+    .empty-state h2 {
+      font-family: 'Anton', sans-serif; font-size: 30px;
+      text-transform: uppercase; letter-spacing: .02em; margin: 0 0 10px;
+    }
+    .empty-state p { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+
+    /* ---------- modal ---------- */
+    .veil {
+      position: fixed; inset: 0; background: rgba(20,20,18,.55);
+      display: none; align-items: flex-start; justify-content: center;
+      padding: 30px 16px; overflow-y: auto; z-index: 50;
+    }
+    .veil.open { display: flex; }
+    .sheet {
+      background: var(--ground); border: 1px solid var(--ink);
+      width: 100%; max-width: 560px; padding: 26px;
+    }
+    .sheet h3 {
+      font-family: 'Anton', sans-serif; font-size: 22px;
+      text-transform: uppercase; letter-spacing: .02em; margin: 0 0 4px;
+    }
+    .sheet .hint { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; }
+    .tabs button {
+      flex: 1; font-family: 'Space Mono', monospace; font-size: 11px;
+      letter-spacing: .08em; text-transform: uppercase; padding: 10px;
+      border: 1px solid var(--ink); background: transparent;
+      color: var(--ink); cursor: pointer;
+    }
+    .tabs button + button { border-left: none; }
+    .tabs button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+
+    label {
+      display: block; font-family: 'Space Mono', monospace;
+      font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); margin: 14px 0 5px;
+    }
+    input[type=text], input[type=url], select, textarea {
+      width: 100%; padding: 9px 11px; font-family: 'Archivo', sans-serif;
+      font-size: 14px; border: 1px solid var(--line);
+      background: var(--card); color: var(--ink); border-radius: 0;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; min-width: 0; }
+
+    .drop {
+      border: 1px dashed var(--line); background: var(--card);
+      padding: 30px 16px; text-align: center; cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+    .drop p { margin: 0; font-size: 13px; color: var(--muted); }
+    .drop strong { color: var(--ink); }
+
+    .preview { display: none; margin-top: 14px; }
+    .preview.on { display: block; }
+    .preview img {
+      width: 100%; max-height: 260px; object-fit: contain;
+      background: var(--card); border: 1px solid var(--line);
+    }
+
+    .actions { display: flex; gap: 10px; margin-top: 24px; }
+    .actions .btn { flex: 1; }
+
+    .status {
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      letter-spacing: .06em; text-transform: uppercase;
+      color: var(--accent); margin-top: 14px; min-height: 16px;
+    }
+    .status.err { color: #B3261E; }
+
+    .chips-out { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .chips-out span {
+      font-family: 'Space Mono', monospace; font-size: 10px;
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 4px 8px; border: 1px solid var(--line); color: var(--muted);
+    }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(80px);
+      background: var(--ink); color: var(--ground);
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      letter-spacing: .07em; text-transform: uppercase;
+      padding: 11px 18px; z-index: 90; opacity: 0;
+      transition: transform .28s cubic-bezier(.2,.8,.3,1), opacity .28s;
+    }
+    .toast.on { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    .spinner {
+      display: inline-block; width: 10px; height: 10px;
+      border: 2px solid var(--accent); border-top-color: transparent;
+      border-radius: 50%; animation: spin .7s linear infinite;
+      margin-right: 7px; vertical-align: -1px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #app * { transition: none !important; animation: none !important; }
+      .card:hover { transform: none; }
+      .card:hover .tag, .card:focus-visible .tag { transform: none; opacity: 1; }
+    }
+
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; padding: 18px 14px 60px; }
+      .bar, .strip, .rail { padding-left: 14px; padding-right: 14px; }
+      .search { min-width: 110px; }
+    }
+  </style>
+
+  <div class="bar">
+    <div class="wordmark">The Rail<span>.</span></div>
+    <div class="bar-spacer"></div>
+    <button class="btn ghost small" id="exportBtn">Export</button>
+    <button class="btn ghost small" id="importBtn">Import</button>
+    <button class="btn" id="openAdd">+ Add a piece</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+
+  <div class="strip" id="strip">
+    <span><span class="spinner"></span>Opening the rail</span>
+  </div>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="grid" id="grid"></div>
+
+  <!-- add / edit sheet -->
+  <div class="veil" id="veil">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <h3 id="sheetTitle">Add a piece</h3>
+      <p class="hint">Upload a photo and it gets read and catalogued, or paste a product link.</p>
+
+      <div class="tabs" id="tabs">
+        <button data-tab="photo" aria-pressed="true">Photo</button>
+        <button data-tab="url" aria-pressed="false">Product link</button>
+      </div>
+
+      <div id="paneP">
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a photo">
+          <p><strong>Choose a photo</strong> or drop one here</p>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+        <div class="preview" id="prev"><img id="prevImg" alt="Selected garment"></div>
+      </div>
+
+      <div id="paneU" style="display:none">
+        <label for="url">Product page link</label>
+        <input type="url" id="url" placeholder="https://">
+        <button class="btn ghost" id="fetchUrl" style="margin-top:12px;width:100%">Read this page</button>
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div id="fields" style="display:none">
+        <label for="fName">Name</label>
+        <input type="text" id="fName">
+        <div class="row">
+          <div>
+            <label for="fCat">Category</label>
+            <select id="fCat">
+              <option>Tops</option><option>Knitwear</option><option>Bottoms</option>
+              <option>Outerwear</option><option>Suiting</option><option>Footwear</option>
+              <option>Activewear</option><option>Accessories</option>
+            </select>
+          </div>
+          <div>
+            <label for="fColor">Primary colour</label>
+            <input type="text" id="fColor">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="fFormal">Formality</label>
+            <select id="fFormal">
+              <option value="1">1 — Lounge</option><option value="2">2 — Casual</option>
+              <option value="3">3 — Smart casual</option><option value="4">4 — Business</option>
+              <option value="5">5 — Formal</option>
+            </select>
+          </div>
+          <div>
+            <label for="fSeason">Seasons</label>
+            <input type="text" id="fSeason" placeholder="spring, summer">
+          </div>
+        </div>
+        <label for="fNotes">Notes</label>
+        <textarea id="fNotes"></textarea>
+        <div class="chips-out" id="palette"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" id="cancel">Cancel</button>
+        <button class="btn" id="save" style="display:none">Save to rail</button>
+        <button class="btn ghost" id="del" style="display:none">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="veil" id="dumpVeil">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dumpTitle">
+      <h3 id="dumpTitle">Copy your rail</h3>
+      <p class="hint">The download was blocked here. Copy this and save it as a .json file.</p>
+      <textarea id="dumpText" readonly style="min-height:220px;font-family:'Space Mono',monospace;font-size:11px"></textarea>
+      <div class="actions">
+        <button class="btn ghost" id="dumpClose">Close</button>
+        <button class="btn" id="dumpCopy">Copy to clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function () {
+  const IDX = 'wardrobe:index';
+  const IMG = id => 'wardrobe:img:' + id;
+  const CATS = ['Tops','Knitwear','Bottoms','Outerwear','Suiting','Footwear','Activewear','Accessories'];
+
+  let items = [];          // metadata
+  let imgs = {};           // id -> base64 or remote url
+  let filter = 'All';
+  let query = '';
+  let draft = null;        // { image, imageUrl, ...fields }
+  let editingId = null;
+
+  const $ = s => document.querySelector(s);
+  const grid = $('#grid'), rail = $('#rail'), strip = $('#strip'), veil = $('#veil');
+
+  /* ---------------- storage ---------------- */
+
+  async function load() {
+    try {
+      const r = await window.storage.get(IDX);
+      items = r ? JSON.parse(r.value) : [];
+    } catch (e) { items = []; }
+
+    render();
+
+    // images load in parallel, cards fill in as they arrive
+    await Promise.all(items.map(async it => {
+      if (it.remote) { imgs[it.id] = it.remote; paintImage(it.id); return; }
+      try {
+        const r = await window.storage.get(IMG(it.id));
+        if (r) { imgs[it.id] = 'data:image/jpeg;base64,' + r.value; paintImage(it.id); }
+      } catch (e) { /* card stays as a blank frame */ }
+    }));
+  }
+
+  async function saveIndex() {
+    try { await window.storage.set(IDX, JSON.stringify(items)); }
+    catch (e) { toast('That did not save — the rail is full'); }
+  }
+
+  /* ---------------- image handling ---------------- */
+
+  function compress(file, maxDim = 640, q = 0.72) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = e => {
+        const im = new Image();
+        im.onload = () => {
+          let w = im.width, h = im.height;
+          const s = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.round(w * s); h = Math.round(h * s);
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(im, 0, 0, w, h);
+          res(c.toDataURL('image/jpeg', q).split(',')[1]);
+        };
+        im.onerror = () => rej(new Error('That file is not an image we can read'));
+        im.src = e.target.result;
+      };
+      fr.onerror = () => rej(new Error('That file could not be read'));
+      fr.readAsDataURL(file);
+    });
+  }
+
+  /* ---------------- claude ---------------- */
+
+  const SCHEMA = `Return ONLY a JSON object, no prose and no markdown fences:
+{"name":"short descriptive name, max 5 words",
+ "category":"one of: ${CATS.join(', ')}",
+ "color":"primary colour in plain words",
+ "palette":["#hex","#hex"],
+ "pattern":"solid|striped|checked|printed|textured",
+ "material":"best guess",
+ "formality":1-5 where 1 is lounge and 5 is formal,
+ "seasons":["spring","summer","autumn","winter"],
+ "notes":"one short line on styling character"}`;
+
+  async function callClaude(body) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ model: 'claude-sonnet-4-6', max_tokens: 1000 }, body))
+    });
+    const d = await r.json();
+    const text = (d.content || [])
+      .filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const start = clean.indexOf('{'), end = clean.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('no json');
+    return JSON.parse(clean.slice(start, end + 1));
+  }
+
+  const readPhoto = b64 => callClaude({
+    messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+      { type: 'text', text: 'Catalogue this garment for a personal wardrobe.\n' + SCHEMA }
+    ]}]
+  });
+
+  const readUrl = u => callClaude({
+    messages: [{ role: 'user', content:
+      `Look up this product page and catalogue the garment: ${u}\n` +
+      `Also include "imageUrl" with a direct link to the product image if you find one.\n` + SCHEMA }],
+    tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+  });
+
+  /* ---------------- render ---------------- */
+
+  function visible() {
+    return items.filter(it => {
+      if (filter !== 'All' && it.category !== filter) return false;
+      if (!query) return true;
+      const hay = (it.name + ' ' + it.color + ' ' + it.category + ' ' + (it.notes || '')).toLowerCase();
+      return hay.includes(query);
+    });
+  }
+
+  function render() {
+    // filter rail
+    const counts = {};
+    items.forEach(i => counts[i.category] = (counts[i.category] || 0) + 1);
+    const present = CATS.filter(c => counts[c]);
+    rail.innerHTML =
+      ['All'].concat(present).map(c =>
+        `<button class="chip" data-cat="${c}" aria-pressed="${filter === c}">${c}${c === 'All' ? '' : ' · ' + counts[c]}</button>`
+      ).join('') +
+      `<input class="search" id="q" type="text" placeholder="Search the rail" value="${query}">`;
+
+    rail.querySelectorAll('.chip').forEach(b =>
+      b.onclick = () => { filter = b.dataset.cat; render(); });
+    const q = $('#q');
+    q.oninput = e => { query = e.target.value.toLowerCase(); paintGrid(); };
+
+    paintStrip();
+    paintGrid();
+  }
+
+  function paintStrip() {
+    if (!items.length) { strip.innerHTML = '<span>Nothing on the rail yet</span>'; return; }
+    const cats = new Set(items.map(i => i.category));
+    const swatches = items.flatMap(i => i.palette || []).slice(0, 14);
+    const neutral = ['black','white','grey','gray','navy','beige','cream','brown','tan','charcoal'];
+    const coloured = items.filter(i =>
+      !neutral.some(n => (i.color || '').toLowerCase().includes(n))).length;
+    strip.innerHTML =
+      `<span><b>${items.length}</b> pieces</span>` +
+      `<span><b>${cats.size}</b> of ${CATS.length} categories</span>` +
+      `<span><b>${Math.round(coloured / items.length * 100)}%</b> non-neutral</span>` +
+      (swatches.length ? `<span class="swatch-row">${swatches.map(h =>
+        `<span class="swatch" style="background:${h}"></span>`).join('')}</span>` : '');
+  }
+
+  function paintGrid() {
+    const list = visible();
+    if (!list.length) {
+      grid.innerHTML = `<div class="empty-state">
+        <h2>${items.length ? 'Nothing matches' : 'The rail is empty'}</h2>
+        <p>${items.length ? 'Try a different category or search.' : 'Add your first piece and it gets read, tagged, and hung here.'}</p>
+        ${items.length ? '' : '<button class="btn" id="firstAdd">+ Add a piece</button>'}
+      </div>`;
+      const f = $('#firstAdd'); if (f) f.onclick = openAdd;
+      return;
+    }
+    grid.innerHTML = list.map(it => `
+      <button class="card" data-id="${it.id}">
+        <div class="frame empty" id="f-${it.id}"></div>
+        <div class="tag">
+          <div><span class="k">FRM</span> ${'●'.repeat(it.formality || 1)}</div>
+          <div><span class="k">PAT</span> ${(it.pattern || '—').slice(0, 8)}</div>
+          <div><span class="k">SSN</span> ${(it.seasons || []).map(s => s.slice(0, 2)).join(' ') || '—'}</div>
+          <div class="swatch-row" style="margin-top:5px">${(it.palette || []).slice(0, 4)
+            .map(h => `<span class="swatch" style="background:${h}"></span>`).join('')}</div>
+        </div>
+        <div class="meta">
+          <div class="name">${esc(it.name)}</div>
+          <div class="sub">${esc(it.category)} · ${esc(it.color || '')}</div>
+        </div>
+      </button>`).join('');
+
+    grid.querySelectorAll('.card').forEach(c =>
+      c.onclick = () => openEdit(c.dataset.id));
+    list.forEach(it => paintImage(it.id));
+  }
+
+  function paintImage(id) {
+    const f = document.getElementById('f-' + id);
+    if (!f || !imgs[id]) return;
+    f.classList.remove('empty');
+    f.innerHTML = `<img src="${imgs[id]}" alt="">`;
+  }
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* ---------------- sheet ---------------- */
+
+  function setStatus(msg, isErr, busy) {
+    const s = $('#status');
+    s.className = 'status' + (isErr ? ' err' : '');
+    s.innerHTML = (busy ? '<span class="spinner"></span>' : '') + (msg || '');
+  }
+
+  function fillFields(d) {
+    $('#fields').style.display = 'block';
+    $('#save').style.display = 'block';
+    $('#fName').value = d.name || '';
+    $('#fCat').value = CATS.includes(d.category) ? d.category : 'Tops';
+    $('#fColor').value = d.color || '';
+    $('#fFormal').value = String(d.formality || 3);
+    $('#fSeason').value = (d.seasons || []).join(', ');
+    $('#fNotes').value = d.notes || '';
+    $('#palette').innerHTML = (d.palette || []).map(h =>
+      `<span><span class="swatch" style="background:${h};display:inline-block;margin-right:5px"></span>${h}</span>`).join('');
+  }
+
+  function resetSheet() {
+    draft = null; editingId = null;
+    $('#fields').style.display = 'none';
+    $('#save').style.display = 'none';
+    $('#del').style.display = 'none';
+    $('#prev').classList.remove('on');
+    $('#url').value = ''; $('#file').value = '';
+    setStatus('');
+    tab('photo');
+  }
+
+  function openAdd() {
+    resetSheet();
+    $('#sheetTitle').textContent = 'Add a piece';
+    $('#tabs').style.display = 'flex';
+    $('#paneP').style.display = 'block';
+    veil.classList.add('open');
+  }
+
+  function openEdit(id) {
+    const it = items.find(i => i.id === id);
+    if (!it) return;
+    resetSheet();
+    editingId = id;
+    draft = Object.assign({}, it);
+    $('#sheetTitle').textContent = 'Edit piece';
+    $('#tabs').style.display = 'none';
+    $('#paneP').style.display = 'none';
+    $('#paneU').style.display = 'none';
+    $('#del').style.display = 'block';
+    if (imgs[id]) { $('#prevImg').src = imgs[id]; $('#prev').classList.add('on'); }
+    fillFields(it);
+    veil.classList.add('open');
+  }
+
+  function tab(which) {
+    $('#tabs').querySelectorAll('button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.tab === which)));
+    $('#paneP').style.display = which === 'photo' ? 'block' : 'none';
+    $('#paneU').style.display = which === 'url' ? 'block' : 'none';
+  }
+
+  async function handleFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      setStatus('That needs to be an image file', true); return;
+    }
+    try {
+      setStatus('Reading the garment', false, true);
+      const b64 = await compress(file);
+      $('#prevImg').src = 'data:image/jpeg;base64,' + b64;
+      $('#prev').classList.add('on');
+      let d;
+      try { d = await readPhoto(b64); }
+      catch (e) { d = { name: '', category: 'Tops' }; setStatus('Read it but could not tag it — fill this in yourself', true); }
+      if (d.name) setStatus('Tagged. Adjust anything below.');
+      draft = Object.assign({ image: b64 }, d);
+      fillFields(d);
+    } catch (e) {
+      setStatus(e.message, true);
+    }
+  }
+
+  /* ---------------- wiring ---------------- */
+
+  $('#openAdd').onclick = openAdd;
+  $('#cancel').onclick = () => veil.classList.remove('open');
+  veil.onclick = e => { if (e.target === veil) veil.classList.remove('open'); };
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (veil.classList.contains('open')) veil.classList.remove('open');
+    const dv = document.getElementById('dumpVeil');
+    if (dv && dv.classList.contains('open')) dv.classList.remove('open');
+  });
+
+  $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+
+  $('#drop').onclick = () => $('#file').click();
+  $('#drop').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#file').click(); } };
+  $('#file').onchange = e => handleFile(e.target.files[0]);
+  ['dragenter', 'dragover'].forEach(ev => $('#drop').addEventListener(ev, e => {
+    e.preventDefault(); $('#drop').classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach(ev => $('#drop').addEventListener(ev, e => {
+    e.preventDefault(); $('#drop').classList.remove('over');
+  }));
+  $('#drop').addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+  $('#fetchUrl').onclick = async () => {
+    const u = $('#url').value.trim();
+    if (!u) { setStatus('Paste a product link first', true); return; }
+    setStatus('Reading the product page', false, true);
+    try {
+      const d = await readUrl(u);
+      draft = Object.assign({ remote: d.imageUrl || null, source: u }, d);
+      if (d.imageUrl) { $('#prevImg').src = d.imageUrl; $('#prev').classList.add('on'); }
+      fillFields(d);
+      setStatus(d.imageUrl ? 'Found it. Adjust anything below.' : 'Found the details but no image — add a photo later.');
+    } catch (e) {
+      setStatus('Could not read that page. Fill this in yourself.', true);
+      draft = { source: u };
+      fillFields({ category: 'Tops' });
+    }
+  };
+
+  $('#save').onclick = async () => {
+    const d = draft || {};
+    const rec = {
+      id: editingId || ('i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+      name: $('#fName').value.trim() || 'Untitled piece',
+      category: $('#fCat').value,
+      color: $('#fColor').value.trim(),
+      formality: Number($('#fFormal').value),
+      seasons: $('#fSeason').value.split(',').map(s => s.trim()).filter(Boolean),
+      notes: $('#fNotes').value.trim(),
+      palette: d.palette || [],
+      pattern: d.pattern || '',
+      material: d.material || '',
+      remote: d.remote || null,
+      source: d.source || null,
+      added: (editingId && items.find(i => i.id === editingId).added) || Date.now()
+    };
+
+    if (d.image) {
+      try { await window.storage.set(IMG(rec.id), d.image); imgs[rec.id] = 'data:image/jpeg;base64,' + d.image; }
+      catch (e) { toast('Image did not save'); }
+    }
+    if (rec.remote) imgs[rec.id] = rec.remote;
+
+    if (editingId) items = items.map(i => i.id === editingId ? rec : i);
+    else items.unshift(rec);
+
+    await saveIndex();
+    veil.classList.remove('open');
+    render();
+    toast(editingId ? 'Updated' : 'Hung on the rail');
+  };
+
+  $('#del').onclick = async () => {
+    if (!editingId) return;
+    items = items.filter(i => i.id !== editingId);
+    delete imgs[editingId];
+    try { await window.storage.delete(IMG(editingId)); } catch (e) {}
+    await saveIndex();
+    veil.classList.remove('open');
+    render();
+    toast('Removed');
+  };
+
+  /* ---------------- export / import ---------------- */
+
+  async function buildPayload() {
+    const payload = {
+      format: 'the-rail/v1',
+      exported: new Date().toISOString(),
+      items: items,
+      images: {}
+    };
+    for (const it of items) {
+      if (it.remote) continue;
+      let b64 = null;
+      const cached = imgs[it.id];
+      if (cached && cached.indexOf('data:') === 0) b64 = cached.split(',')[1];
+      else {
+        try { const r = await window.storage.get(IMG(it.id)); if (r) b64 = r.value; } catch (e) {}
+      }
+      if (b64) payload.images[it.id] = b64;
+    }
+    return JSON.stringify(payload);
+  }
+
+  async function exportRail() {
+    if (!items.length) { toast('Nothing on the rail to export'); return; }
+    toast('Packing the rail');
+    const json = await buildPayload();
+    try {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'the-rail-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('Exported ' + items.length + ' pieces');
+    } catch (e) {
+      $('#dumpText').value = json;
+      $('#dumpVeil').classList.add('open');
+    }
+  }
+
+  async function importRail(file) {
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+      if (!data || !Array.isArray(data.items)) throw new Error('shape');
+    } catch (e) { toast('That file is not a rail export'); return; }
+
+    const seen = new Set(items.map(i => i.id));
+    let added = 0, skippedImages = 0;
+
+    for (const it of data.items) {
+      if (!it || !it.id || seen.has(it.id)) continue;
+      items.push(it);
+      seen.add(it.id);
+      added++;
+      const b64 = data.images && data.images[it.id];
+      if (b64) {
+        try {
+          await window.storage.set(IMG(it.id), b64);
+          imgs[it.id] = 'data:image/jpeg;base64,' + b64;
+        } catch (e) { skippedImages++; }
+      } else if (it.remote) imgs[it.id] = it.remote;
+    }
+
+    items.sort((a, b) => (b.added || 0) - (a.added || 0));
+    await saveIndex();
+    render();
+
+    if (!added) toast('Everything in that file was already here');
+    else if (skippedImages) toast('Added ' + added + ' pieces · ' + skippedImages + ' images did not fit');
+    else toast('Added ' + added + ' pieces');
+  }
+
+  $('#exportBtn').onclick = exportRail;
+  $('#importBtn').onclick = () => $('#importFile').click();
+  $('#importFile').onchange = e => { importRail(e.target.files[0]); e.target.value = ''; };
+  $('#dumpClose').onclick = () => $('#dumpVeil').classList.remove('open');
+  $('#dumpVeil').onclick = e => { if (e.target === $('#dumpVeil')) $('#dumpVeil').classList.remove('open'); };
+  $('#dumpCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#dumpText').value); toast('Copied'); }
+    catch (e) { $('#dumpText').select(); toast('Press copy on your keyboard'); }
+  };
+
+  let tt;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+
+  load();
+})();
+</script>

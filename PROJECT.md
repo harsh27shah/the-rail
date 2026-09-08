@@ -276,16 +276,39 @@ user-pasted keys.
 
 Suggested build order:
 
-1. **Accounts + a real backend that owns the Anthropic API key.** Fixes the prototype's
-   biggest structural gap and is the prerequisite for everything else.
-2. **Wardrobe ingestion + storefront view (P0).** Reuse the prototype's data model (§4) and
-   visual design (§3). Bulk photo ingestion is the priority ingestion path, not
-   one-photo-per-item — see PRD pain point on ingestion burden.
-3. **Bulk delete of bad ingestions (P0).** Ship alongside ingestion, not after — ingestion
-   will be imperfect from day one, and there's no recovery path without this.
-4. **Per-item styling suggestions (P0).** Real computation replacing the prototype's
-   hand-authored mock pairing data. Decide rule-based vs. AI-computed pairing logic as part
-   of this step — not decided yet.
+1. ✅ **Backend that owns the Anthropic API key + real database/storage (Supabase).**
+   Done — single-owner mode, no accounts yet (deliberately deferred, see below).
+2. ✅ **Wardrobe ingestion + storefront view (P0) — one-photo-per-item version.** Live and
+   tested end-to-end: upload a photo → Claude tags it → stored in Supabase → shows on the
+   storefront. Reused the prototype's data model (§4) and visual design (§3).
+3. ✅ **Bulk delete of bad ingestions (P0).** Live — "Select" mode on the storefront.
+4. ✅ **Per-item styling suggestions (P0).** Live — real rule-based computation
+   (`src/lib/pairings.ts`) replacing the prototype's hand-authored mock data. Whether this
+   becomes AI-computed later is still open.
+5. ⬜ **Garment extraction from photos.** Not yet built, and important for the MVP, not a
+   someday-maybe — the current add flow stores whatever photo is uploaded as-is, so a photo
+   of the owner wearing an outfit shows the whole photo on the card rather than an isolated
+   garment shot. This is the "bulk extraction from existing photos" ingestion path called
+   out in the original resequencing reasoning above (§2 item 1) and is next up.
+6. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+   owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
+
+### Decisions made building this (keep in sync with the PRD if they change)
+
+- **No accounts in phase 1.** Single-owner mode was chosen deliberately so ingestion + UI
+  could be validated before spending time on auth. Add accounts before inviting other
+  people to use it, not before then.
+- **Anthropic key is server-side and owner-billed.** No more per-user pasted keys (the
+  prototype's stopgap). This means the owner's own Anthropic account is billed for all
+  usage until real accounts + usage limits exist.
+- **Pairing logic is rule-based, not AI-computed, for now.** Category compatibility +
+  formality closeness + pattern-clash avoidance + season overlap. Free to run, no API cost
+  per view. Revisit if the suggestions aren't good enough once there's a real wardrobe to
+  test against.
+- **Images are stored as uploaded, full resolution** (via Supabase Storage) — no more of
+  the prototype's lossy 640px compression. Garment cropping (item 5 above) still needs to
+  happen before storage/tagging to get clean per-item photos; right now the whole uploaded
+  photo is stored and tagged as one item.

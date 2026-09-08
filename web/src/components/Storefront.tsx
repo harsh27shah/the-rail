@@ -92,6 +92,26 @@ export function Storefront({ items }: { items: Item[] }) {
                 ))}
               </span>
             )}
+            <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              {selectMode ? (
+                <>
+                  <button
+                    className="btn ghost small"
+                    onClick={handleBulkDelete}
+                    disabled={selected.size === 0 || deleting}
+                  >
+                    {deleting ? "Removing…" : `Remove ${selected.size || ""}`.trim()}
+                  </button>
+                  <button className="btn ghost small" onClick={exitSelectMode} disabled={deleting}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button className="btn ghost small" onClick={() => setSelectMode(true)}>
+                  Select
+                </button>
+              )}
+            </span>
           </>
         )}
       </div>
@@ -114,25 +134,6 @@ export function Storefront({ items }: { items: Item[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        {items.length > 0 &&
-          (selectMode ? (
-            <>
-              <button
-                className="btn ghost small"
-                onClick={handleBulkDelete}
-                disabled={selected.size === 0 || deleting}
-              >
-                {deleting ? "Removing…" : `Remove ${selected.size || ""}`.trim()}
-              </button>
-              <button className="btn ghost small" onClick={exitSelectMode} disabled={deleting}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button className="btn ghost small" onClick={() => setSelectMode(true)}>
-              Select
-            </button>
-          ))}
       </div>
 
       {deleteError && (

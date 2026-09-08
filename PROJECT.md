@@ -173,6 +173,12 @@ prototype (§4) and worth carrying forward as-is:
 `prefers-reduced-motion` should disable the lift/rotation transitions and leave hover
 content in its revealed state.
 
+**Planned upgrade, not yet built:** the pairing pills are currently text-only (item names).
+The intended end state is small photo thumbnails of the paired items instead of text — but
+this only looks good once garment cropping (§5) exists, so a pill shows just the isolated
+garment rather than a whole photo of a person wearing it. Do this after cropping, not
+before.
+
 ### Copy voice
 
 Interface-voiced, never apologetic, always specific about what happened and what to do.

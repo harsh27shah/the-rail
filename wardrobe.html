@@ -116,27 +116,49 @@
       display: grid; place-items: center; color: var(--line); font-size: 28px;
     }
 
-    /* the swing tag — signature element */
-    .tag {
-      position: absolute; top: 10px; right: 10px;
-      background: var(--card); border: 1px solid var(--ink);
-      padding: 20px 10px 9px 10px; min-width: 76px;
-      font-family: 'Space Mono', monospace; font-size: 9px;
-      letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.7;
-      transform-origin: 50% 8px;
-      transform: rotate(-4deg) scale(.82); opacity: 0;
-      transition: transform .3s cubic-bezier(.2,.8,.3,1), opacity .2s;
+    /* hover overlay — replaces the old swing tag. Dims the frame and surfaces the
+       item's info plus pairing suggestions; an edit button sits top-right. */
+    .overlay {
+      position: absolute; inset: 0;
+      background: rgba(26,26,24,.82); color: var(--ground);
+      padding: 12px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      opacity: 0; transition: opacity .2s;
       pointer-events: none;
     }
-    .tag::before { /* punched hole */
-      content: ''; position: absolute; top: 7px; left: 50%;
-      width: 7px; height: 7px; margin-left: -3.5px;
-      border: 1px solid var(--ink); border-radius: 50%;
+    .card:hover .overlay, .card:focus-visible .overlay { opacity: 1; pointer-events: auto; }
+    .overlay-info {
+      font-family: 'Space Mono', monospace; font-size: 9.5px;
+      letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.75;
     }
-    .card:hover .tag, .card:focus-visible .tag {
-      transform: rotate(2.5deg) scale(1); opacity: 1;
+    .overlay-info .name {
+      font-family: 'Archivo', sans-serif; font-size: 13.5px; font-weight: 600;
+      text-transform: none; letter-spacing: 0; line-height: 1.3; margin-bottom: 6px;
     }
-    .tag .k { color: var(--muted); }
+    .overlay-info .k { color: rgba(247,246,242,.55); }
+    .overlay .swatch { border-color: rgba(247,246,242,.4); }
+
+    .card-edit {
+      align-self: flex-end;
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 5px 9px; border: 1px solid var(--ground);
+      background: transparent; color: var(--ground); cursor: pointer;
+    }
+    .card-edit:hover { background: var(--ground); color: var(--ink); }
+
+    .pair-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .pair-pill {
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 5px 8px; border: 1px solid rgba(247,246,242,.5);
+      color: var(--ground); max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pair-pills-empty {
+      font-family: 'Space Mono', monospace; font-size: 9.5px;
+      letter-spacing: 0.06em; text-transform: uppercase; color: rgba(247,246,242,.55);
+    }
 
     .meta { padding-top: 10px; }
     .meta .name {
@@ -160,6 +182,17 @@
     }
     .empty-state p { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
 
+    .preview-block { grid-column: 1 / -1; padding: 0 24px 60px; }
+    .preview-label {
+      font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted); text-align: center; margin-bottom: 20px;
+    }
+    .preview-grid {
+      display: grid; gap: 22px;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    }
+    .preview-card { cursor: default; }
+
     /* ---------- modal ---------- */
     .veil {
       position: fixed; inset: 0; background: rgba(20,20,18,.55);
@@ -176,6 +209,7 @@
       text-transform: uppercase; letter-spacing: .02em; margin: 0 0 4px;
     }
     .sheet .hint { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+    .sheet .hint a { color: var(--accent); }
 
     .tabs { display: flex; gap: 0; margin-bottom: 20px; }
     .tabs button {
@@ -192,7 +226,7 @@
       font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
       color: var(--muted); margin: 14px 0 5px;
     }
-    input[type=text], input[type=url], select, textarea {
+    input[type=text], input[type=url], input[type=password], select, textarea {
       width: 100%; padding: 9px 11px; font-family: 'Archivo', sans-serif;
       font-size: 14px; border: 1px solid var(--line);
       background: var(--card); color: var(--ink); border-radius: 0;
@@ -255,19 +289,78 @@
     @media (prefers-reduced-motion: reduce) {
       #app * { transition: none !important; animation: none !important; }
       .card:hover { transform: none; }
-      .card:hover .tag, .card:focus-visible .tag { transform: none; opacity: 1; }
+      .card:hover .overlay, .card:focus-visible .overlay { opacity: 1; }
     }
 
     @media (max-width: 560px) {
       .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; padding: 18px 14px 60px; }
+      .preview-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
+      .preview-block { padding: 0 14px 40px; }
       .bar, .strip, .rail { padding-left: 14px; padding-right: 14px; }
       .search { min-width: 110px; }
+      .detail-image { flex-basis: 100%; width: 100%; max-width: 320px; }
     }
+
+    /* ---------- item detail page ---------- */
+    .detail { padding: 30px 24px 90px; max-width: 920px; margin: 0 auto; }
+    .detail-back {
+      font-family: 'Space Mono', monospace; font-size: 11px;
+      letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+      background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 26px;
+    }
+    .detail-back:hover { color: var(--ink); }
+    .detail-top { display: flex; gap: 36px; flex-wrap: wrap; }
+    .detail-image {
+      flex: 0 0 300px; width: 300px; aspect-ratio: 3/4;
+      border: 1px solid var(--line); background: var(--card); overflow: hidden;
+    }
+    .detail-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detail-info { flex: 1 1 280px; min-width: 240px; }
+    .detail-info h2 {
+      font-family: 'Anton', sans-serif; font-size: 32px; text-transform: uppercase;
+      letter-spacing: .01em; margin: 0 0 8px; line-height: 1.05;
+    }
+    .detail-sub {
+      font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+    }
+    .detail-facts {
+      display: flex; flex-wrap: wrap; gap: 16px 30px;
+      font-family: 'Space Mono', monospace; font-size: 10px;
+      letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+      padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      margin-bottom: 20px;
+    }
+    .detail-facts b { color: var(--ink); display: block; font-size: 13px; margin-top: 4px; font-weight: 500; }
+    .detail-notes { font-size: 14px; line-height: 1.55; color: var(--ink); margin: 0 0 20px; }
+    .detail-actions { display: flex; gap: 10px; }
+    .detail-actions .btn { flex: none; padding-left: 20px; padding-right: 20px; }
+
+    .pairing-section { margin-top: 46px; }
+    .pairing-section h3 {
+      font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin: 0 0 16px;
+    }
+    .pairing-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .pairing-item { cursor: pointer; }
+    .pairing-item .frame {
+      aspect-ratio: 3/4; border: 1px solid var(--line); background: var(--card);
+      overflow: hidden; transition: transform .18s;
+    }
+    .pairing-item:hover .frame, .pairing-item:focus-visible .frame { transform: translateY(-4px); }
+    .pairing-item .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pairing-item .name { font-size: 12.5px; font-weight: 500; margin-top: 8px; }
+    .pairing-item .sub {
+      font-family: 'Space Mono', monospace; font-size: 9.5px; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted); margin-top: 2px;
+    }
+    .pairing-empty { color: var(--muted); font-size: 13px; }
   </style>
 
   <div class="bar">
     <div class="wordmark">The Rail<span>.</span></div>
     <div class="bar-spacer"></div>
+    <button class="btn ghost small" id="apiKeyBtn">API Key</button>
     <button class="btn ghost small" id="exportBtn">Export</button>
     <button class="btn ghost small" id="importBtn">Import</button>
     <button class="btn" id="openAdd">+ Add a piece</button>
@@ -281,6 +374,8 @@
   <div class="rail" id="rail"></div>
 
   <div class="grid" id="grid"></div>
+
+  <div class="detail" id="detail" style="display:none"></div>
 
   <!-- add / edit sheet -->
   <div class="veil" id="veil">
@@ -365,14 +460,166 @@
     </div>
   </div>
 
+  <div class="veil" id="apiKeyVeil">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="apiKeyTitle">
+      <h3 id="apiKeyTitle">Anthropic API key</h3>
+      <p class="hint">Needed to read photos and product links. Get one at
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.
+        Stored only in this browser — never sent anywhere but Anthropic's API.</p>
+      <label for="apiKeyInput">Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+      <div class="status" id="apiKeyStatus" style="margin-top:10px"></div>
+      <div class="actions">
+        <button class="btn ghost" id="apiKeyClose">Close</button>
+        <button class="btn ghost" id="apiKeyClear">Remove key</button>
+        <button class="btn" id="apiKeySave">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 
 <script>
 (function () {
+  if (!window.storage) {
+    window.storage = {
+      async get(key) {
+        const v = localStorage.getItem(key);
+        return v === null ? null : { value: v };
+      },
+      async set(key, value) { localStorage.setItem(key, value); },
+      async delete(key) { localStorage.removeItem(key); }
+    };
+  }
   const IDX = 'wardrobe:index';
   const IMG = id => 'wardrobe:img:' + id;
   const CATS = ['Tops','Knitwear','Bottoms','Outerwear','Suiting','Footwear','Activewear','Accessories'];
+
+  /* ---------------- illustration fallback ---------------- */
+  // Flat garment-silhouette SVGs. Used for the empty-state preview only — real items
+  // get a real photo or an AI-read image, never an illustration.
+  function garmentSvg(id, category, palette, pattern) {
+    const CARDBG = '#F7F6F2', INK = '#1A1A18';
+    const poly = pts => pts.map(p => p.join(',')).join(' ');
+    const clipId = 'clip-' + id;
+    const c1 = palette[0] || '#CCCCCC', c2 = palette[1] || palette[0] || '#CCCCCC';
+    function deco() {
+      if (pattern === 'striped') return `<g clip-path="url(#${clipId})">${Array.from({ length: 12 })
+        .map((_, i) => `<rect x="0" y="${i * 48}" width="400" height="24" fill="${c2}"/>`).join('')}</g>`;
+      if (pattern === 'checked') return `<g clip-path="url(#${clipId})">` +
+        Array.from({ length: 9 }).map((_, i) => `<rect x="${i * 48}" y="0" width="24" height="533" fill="${c2}" opacity="0.55"/>`).join('') +
+        Array.from({ length: 9 }).map((_, i) => `<rect x="0" y="${i * 60}" width="400" height="24" fill="${c2}" opacity="0.55"/>`).join('') + `</g>`;
+      if (pattern === 'textured') return `<g clip-path="url(#${clipId})"><rect width="400" height="533" fill="${c2}" opacity="0.18"/></g>`;
+      return '';
+    }
+    function markup() {
+      if (category === 'Bottoms') return `
+        <rect x="145" y="150" width="110" height="30" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+        <polygon points="${poly([[150, 180], [197, 180], [190, 430], [155, 430]])}" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+        <polygon points="${poly([[203, 180], [250, 180], [245, 430], [210, 430]])}" fill="${c1}" stroke="${INK}" stroke-width="2"/>`;
+      if (category === 'Footwear') return `
+        <rect x="80" y="372" width="235" height="20" rx="8" fill="#DEDBD1" stroke="${INK}" stroke-width="2"/>
+        <polygon points="${poly([[90, 375], [95, 340], [120, 320], [160, 305], [210, 298], [260, 300], [285, 315], [300, 340], [305, 375]])}" fill="${c1}" stroke="${INK}" stroke-width="2"/>`;
+      if (category === 'Accessories') return `
+        <rect x="50" y="270" width="300" height="36" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+        <rect x="172" y="256" width="56" height="64" rx="4" fill="${CARDBG}" stroke="${INK}" stroke-width="4"/>
+        ${[258, 278, 298, 318].map(x => `<circle cx="${x}" cy="288" r="3" fill="${INK}" opacity="0.5"/>`).join('')}`;
+      if (category === 'Outerwear' || category === 'Suiting') {
+        const long = category === 'Outerwear';
+        const outer = long
+          ? [[270, 165], [235, 145], [165, 145], [130, 165], [75, 195], [95, 285], [135, 240], [140, 460], [260, 460], [265, 240], [305, 285], [325, 195]]
+          : [[265, 160], [230, 145], [170, 145], [135, 160], [85, 185], [105, 270], [145, 230], [148, 420], [252, 420], [255, 230], [295, 270], [315, 185]];
+        const cutout = long ? [[200, 150], [170, 260], [230, 260]] : [[200, 150], [175, 235], [225, 235]];
+        const d = 'M' + outer.map(p => p.join(',')).join(' L') + ' Z M' + cutout.map(p => p.join(',')).join(' L') + ' Z';
+        return `
+          <clipPath id="${clipId}"><path d="${d}" fill-rule="evenodd"/></clipPath>
+          <path d="${d}" fill-rule="evenodd" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+          ${deco()}
+          ${category === 'Suiting' ? `<circle cx="200" cy="300" r="4" fill="${INK}"/>` : ''}`;
+      }
+      if (category === 'Knitwear') {
+        const pts = [[265, 160], [230, 145], [170, 145], [135, 160], [80, 190], [100, 280], [140, 235], [145, 440], [255, 440], [260, 235], [300, 280], [320, 190]];
+        return `
+          <clipPath id="${clipId}"><polygon points="${poly(pts)}"/></clipPath>
+          <polygon points="${poly(pts)}" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+          ${deco()}
+          <line x1="145" y1="430" x2="255" y2="430" stroke="${INK}" stroke-width="2" opacity="0.35"/>
+          <line x1="105" y1="272" x2="140" y2="255" stroke="${INK}" stroke-width="2" opacity="0.35"/>
+          <line x1="295" y1="272" x2="260" y2="255" stroke="${INK}" stroke-width="2" opacity="0.35"/>`;
+      }
+      const pts = [[260, 155], [225, 140], [200, 172], [175, 140], [140, 155], [85, 180], [105, 265], [145, 225], [150, 430], [250, 430], [255, 225], [295, 265], [315, 180]];
+      return `
+        <clipPath id="${clipId}"><polygon points="${poly(pts)}"/></clipPath>
+        <polygon points="${poly(pts)}" fill="${c1}" stroke="${INK}" stroke-width="2"/>
+        ${deco()}`;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="533" viewBox="0 0 400 533">
+      <rect width="400" height="533" fill="${CARDBG}"/>
+      ${markup()}
+    </svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+
+  // Sample pieces shown as a non-interactive preview when the rail is empty, so a new
+  // user can see what a populated rail looks like before adding anything themselves.
+  // Never written to storage — purely a rendering fallback.
+  const PREVIEW_ITEMS = [
+    ['White tee','Tops','white',['#F5F5F0'],'solid','cotton',1,['spring','summer'],'The reset piece — pairs with everything.'],
+    ['Black tee','Tops','black',['#1A1A1A'],'solid','cotton',1,['spring','summer'],'Heavier weight than the white one, drapes better.'],
+    ['Striped linen shirt','Tops','navy stripe',['#1B2A4A','#FFFFFF'],'striped','linen',2,['summer'],'Breathable, slightly oversized fit.'],
+    ['Flannel shirt','Tops','red check',['#8C2B2B','#1A1A1A'],'checked','cotton flannel',2,['autumn','winter'],'Overshirt weight, good third layer.'],
+    ['Merino crewneck','Knitwear','charcoal',['#3A3B3C'],'solid','merino wool',3,['autumn','winter'],'Thin enough to layer under a jacket.'],
+    ['Cable knit sweater','Knitwear','cream',['#EDE6D6'],'textured','wool',2,['winter'],'Chunky, statement piece on its own.'],
+    ['Cardigan','Knitwear','camel',['#C19A6B'],'solid','wool blend',3,['autumn','winter'],'Layers over shirts, reads a little dressier.'],
+    ['Half-zip sweater','Knitwear','navy',['#1B2A4A'],'solid','cotton',3,['autumn'],'Smart-casual middle ground.'],
+    ['Selvedge jeans','Bottoms','indigo',['#2B3A67'],'solid','denim',2,['spring','autumn'],'Straight leg, holds its shape.'],
+    ['Chinos','Bottoms','stone',['#C7BCA8'],'solid','cotton twill',3,['spring','autumn'],'Goes under the blazer or with the tees.'],
+    ['Black trousers','Bottoms','black',['#1A1A1A'],'solid','wool',4,['autumn','winter'],'The dressiest bottom in rotation.'],
+    ['Cargo pants','Bottoms','olive',['#5C5F3A'],'solid','cotton',1,['spring','summer'],'Off-duty, roomy fit.'],
+    ['Wool overcoat','Outerwear','charcoal',['#3A3B3C'],'solid','wool',4,['winter'],'Long line, worn over suiting.'],
+    ['Denim jacket','Outerwear','indigo',['#2B3A67'],'solid','denim',2,['spring','autumn'],'Light layer, worn open over tees.'],
+    ['Field jacket','Outerwear','olive',['#5C5F3A'],'solid','cotton',2,['autumn'],'Utility pockets, casual weekend piece.'],
+    ['Navy blazer','Suiting','navy',['#14213D'],'solid','wool',5,['spring','autumn','winter'],'Dresses up chinos or jeans instantly.'],
+    ['White sneakers','Footwear','white',['#F2F2F2'],'solid','leather',2,['spring','summer'],'Clean minimal silhouette, easy to match.'],
+    ['Chelsea boots','Footwear','brown',['#5C3A21'],'solid','leather',3,['autumn','winter'],'Dresses down a suit, dresses up jeans.'],
+    ['Leather belt','Accessories','brown',['#5C3A21'],'solid','leather',3,['spring','summer','autumn','winter'],'Matches the boots, worn most days.'],
+  ].map(([name, category, color, palette, pattern, material, formality, seasons, notes], i) => {
+    const id = 'preview' + (i + 1).toString().padStart(2, '0');
+    return {
+      id, name, category, color, palette, pattern, material, formality, seasons, notes,
+      remote: garmentSvg(id, category, palette, pattern),
+      source: null,
+      added: Date.now() - i * 3600000
+    };
+  });
+
+  // Hand-picked pairing suggestions for the preview set, keyed by item id — a stand-in
+  // until real pairing logic (rule-based or AI) replaces this with computed data.
+  const PAIRINGS = {
+    preview01: ['preview09','preview12','preview14','preview10'],
+    preview02: ['preview11','preview09','preview15','preview12'],
+    preview03: ['preview10','preview17','preview09'],
+    preview04: ['preview09','preview01','preview18'],
+    preview05: ['preview10','preview11','preview13'],
+    preview06: ['preview09','preview10','preview18'],
+    preview07: ['preview01','preview10','preview09'],
+    preview08: ['preview10','preview16','preview11'],
+    preview09: ['preview01','preview04','preview18','preview17'],
+    preview10: ['preview03','preview05','preview16','preview17'],
+    preview11: ['preview02','preview05','preview16','preview18'],
+    preview12: ['preview01','preview02','preview15'],
+    preview13: ['preview16','preview05','preview11'],
+    preview14: ['preview01','preview06','preview10'],
+    preview15: ['preview02','preview12','preview17'],
+    preview16: ['preview10','preview08','preview11','preview17'],
+    preview17: ['preview09','preview10','preview03','preview16'],
+    preview18: ['preview09','preview11','preview04'],
+    preview19: ['preview10','preview09','preview11'],
+  };
+  function pairingsFor(id, pool) {
+    return (PAIRINGS[id] || []).map(pid => pool.find(p => p.id === pid)).filter(Boolean);
+  }
 
   let items = [];          // metadata
   let imgs = {};           // id -> base64 or remote url
@@ -382,7 +629,7 @@
   let editingId = null;
 
   const $ = s => document.querySelector(s);
-  const grid = $('#grid'), rail = $('#rail'), strip = $('#strip'), veil = $('#veil');
+  const grid = $('#grid'), rail = $('#rail'), strip = $('#strip'), veil = $('#veil'), detail = $('#detail');
 
   /* ---------------- storage ---------------- */
 
@@ -392,7 +639,7 @@
       items = r ? JSON.parse(r.value) : [];
     } catch (e) { items = []; }
 
-    render();
+    route();
 
     // images load in parallel, cards fill in as they arrive
     await Promise.all(items.map(async it => {
@@ -402,6 +649,7 @@
         if (r) { imgs[it.id] = 'data:image/jpeg;base64,' + r.value; paintImage(it.id); }
       } catch (e) { /* card stays as a blank frame */ }
     }));
+    route(); // catches images that arrived after the initial paint, incl. detail view
   }
 
   async function saveIndex() {
@@ -446,13 +694,31 @@
  "seasons":["spring","summer","autumn","winter"],
  "notes":"one short line on styling character"}`;
 
+  const APIKEY = 'wardrobe:apikey';
+  async function getApiKey() {
+    try { const r = await window.storage.get(APIKEY); return r ? r.value : ''; }
+    catch (e) { return ''; }
+  }
+
   async function callClaude(body) {
+    const key = await getApiKey();
+    if (!key) { const e = new Error('Add your Anthropic API key first (top bar → API Key)'); e.code = 'no-api-key'; throw e; }
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify(Object.assign({ model: 'claude-sonnet-4-6', max_tokens: 1000 }, body))
     });
     const d = await r.json();
+    if (d.type === 'error') {
+      const e = new Error(d.error && d.error.message || 'API request failed');
+      if (d.error && d.error.type === 'authentication_error') e.code = 'no-api-key';
+      throw e;
+    }
     const text = (d.content || [])
       .filter(b => b.type === 'text').map(b => b.text).join('\n');
     const clean = text.replace(/```json|```/g, '').trim();
@@ -521,35 +787,83 @@
         `<span class="swatch" style="background:${h}"></span>`).join('')}</span>` : '');
   }
 
+  // Shared markup for the hover overlay: item info + pairing pills. `pairs` is an
+  // already-resolved array of paired item records (see pairingsFor).
+  function overlayContent(it, pairs) {
+    return `
+      <div class="overlay-info">
+        <div class="name">${esc(it.name)}</div>
+        <div><span class="k">FRM</span> ${'●'.repeat(it.formality || 1)}</div>
+        <div><span class="k">PAT</span> ${(it.pattern || '—').slice(0, 8)}</div>
+        <div><span class="k">MAT</span> ${(it.material || '—').slice(0, 16)}</div>
+        <div><span class="k">SSN</span> ${(it.seasons || []).map(s => s.slice(0, 2)).join(' ') || '—'}</div>
+        <div class="swatch-row" style="margin-top:5px">${(it.palette || []).slice(0, 4)
+          .map(h => `<span class="swatch" style="background:${h}"></span>`).join('')}</div>
+      </div>
+      <div class="pair-pills">
+        ${pairs.length
+          ? pairs.map(p => `<span class="pair-pill">${esc(p.name)}</span>`).join('')
+          : '<span class="pair-pills-empty">No pairings yet</span>'}
+      </div>`;
+  }
+
+  function previewBlock() {
+    return `<div class="preview-block">
+      <div class="preview-label">Preview — once you add pieces, your rail looks like this</div>
+      <div class="preview-grid">
+        ${PREVIEW_ITEMS.map(it => `
+          <div class="card preview-card">
+            <div class="frame">
+              <img src="${it.remote}" alt="">
+              <div class="overlay">${overlayContent(it, pairingsFor(it.id, PREVIEW_ITEMS).slice(0, 4))}</div>
+            </div>
+            <div class="meta">
+              <div class="name">${esc(it.name)}</div>
+              <div class="sub">${esc(it.category)} · ${esc(it.color || '')}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
   function paintGrid() {
     const list = visible();
     if (!list.length) {
+      const showPreview = !items.length;
       grid.innerHTML = `<div class="empty-state">
         <h2>${items.length ? 'Nothing matches' : 'The rail is empty'}</h2>
         <p>${items.length ? 'Try a different category or search.' : 'Add your first piece and it gets read, tagged, and hung here.'}</p>
         ${items.length ? '' : '<button class="btn" id="firstAdd">+ Add a piece</button>'}
-      </div>`;
+      </div>` + (showPreview ? previewBlock() : '');
       const f = $('#firstAdd'); if (f) f.onclick = openAdd;
       return;
     }
     grid.innerHTML = list.map(it => `
-      <button class="card" data-id="${it.id}">
-        <div class="frame empty" id="f-${it.id}"></div>
-        <div class="tag">
-          <div><span class="k">FRM</span> ${'●'.repeat(it.formality || 1)}</div>
-          <div><span class="k">PAT</span> ${(it.pattern || '—').slice(0, 8)}</div>
-          <div><span class="k">SSN</span> ${(it.seasons || []).map(s => s.slice(0, 2)).join(' ') || '—'}</div>
-          <div class="swatch-row" style="margin-top:5px">${(it.palette || []).slice(0, 4)
-            .map(h => `<span class="swatch" style="background:${h}"></span>`).join('')}</div>
+      <div class="card" data-id="${it.id}" tabindex="0" role="link" aria-label="View ${esc(it.name)}">
+        <div class="frame empty" id="f-${it.id}">
+          <div class="overlay">
+            <button type="button" class="card-edit" data-id="${it.id}">Edit</button>
+            ${overlayContent(it, pairingsFor(it.id, items).slice(0, 4))}
+          </div>
         </div>
         <div class="meta">
           <div class="name">${esc(it.name)}</div>
           <div class="sub">${esc(it.category)} · ${esc(it.color || '')}</div>
         </div>
-      </button>`).join('');
+      </div>`).join('');
 
-    grid.querySelectorAll('.card').forEach(c =>
-      c.onclick = () => openEdit(c.dataset.id));
+    grid.querySelectorAll('.card').forEach(c => {
+      c.addEventListener('click', e => {
+        if (e.target.closest('.card-edit')) return;
+        location.hash = '#item/' + c.dataset.id;
+      });
+      c.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.target.closest('.card-edit')) location.hash = '#item/' + c.dataset.id;
+      });
+    });
+    grid.querySelectorAll('.card-edit').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); openEdit(b.dataset.id); }));
+
     list.forEach(it => paintImage(it.id));
   }
 
@@ -557,8 +871,83 @@
     const f = document.getElementById('f-' + id);
     if (!f || !imgs[id]) return;
     f.classList.remove('empty');
-    f.innerHTML = `<img src="${imgs[id]}" alt="">`;
+    let img = f.querySelector('img');
+    if (!img) { img = document.createElement('img'); img.alt = ''; f.insertBefore(img, f.firstChild); }
+    img.src = imgs[id];
   }
+
+  /* ---------------- item detail page ---------------- */
+
+  function route() {
+    const m = location.hash.match(/^#item\/(.+)$/);
+    if (m) showDetail(decodeURIComponent(m[1]));
+    else showGrid();
+  }
+
+  function showGrid() {
+    detail.style.display = 'none';
+    strip.style.display = '';
+    rail.style.display = '';
+    grid.style.display = '';
+    render();
+  }
+
+  function showDetail(id) {
+    const it = items.find(i => i.id === id);
+    if (!it) { location.hash = ''; return; }
+    strip.style.display = 'none';
+    rail.style.display = 'none';
+    grid.style.display = 'none';
+    detail.style.display = 'block';
+    paintDetail(it);
+  }
+
+  function paintDetail(it) {
+    const img = imgs[it.id] || it.remote || '';
+    const pairs = pairingsFor(it.id, items);
+    const dots = '●'.repeat(it.formality || 1) + '○'.repeat(Math.max(0, 5 - (it.formality || 1)));
+    detail.innerHTML = `
+      <button class="detail-back" id="detailBack">← Back to the rail</button>
+      <div class="detail-top">
+        <div class="detail-image">${img ? `<img src="${img}" alt="">` : ''}</div>
+        <div class="detail-info">
+          <h2>${esc(it.name)}</h2>
+          <div class="detail-sub">${esc(it.category)} · ${esc(it.color || '')}</div>
+          <div class="detail-facts">
+            <div>Formality<b>${dots}</b></div>
+            <div>Pattern<b>${esc(it.pattern || '—')}</b></div>
+            <div>Material<b>${esc(it.material || '—')}</b></div>
+            <div>Seasons<b>${(it.seasons || []).map(s => s.slice(0, 2).toUpperCase()).join(' ') || '—'}</b></div>
+          </div>
+          ${it.notes ? `<p class="detail-notes">${esc(it.notes)}</p>` : ''}
+          <div class="swatch-row" style="margin-bottom:22px">${(it.palette || [])
+            .map(h => `<span class="swatch" style="background:${h}"></span>`).join('')}</div>
+          <div class="detail-actions">
+            <button class="btn ghost" id="detailEdit">Edit details</button>
+          </div>
+        </div>
+      </div>
+      <div class="pairing-section">
+        <h3>Styles well with</h3>
+        ${pairs.length ? `<div class="pairing-grid">
+          ${pairs.map(p => `
+            <div class="pairing-item" data-id="${p.id}" tabindex="0" role="link" aria-label="View ${esc(p.name)}">
+              <div class="frame">${(imgs[p.id] || p.remote) ? `<img src="${imgs[p.id] || p.remote}" alt="">` : ''}</div>
+              <div class="name">${esc(p.name)}</div>
+              <div class="sub">${esc(p.category)} · ${esc(p.color || '')}</div>
+            </div>`).join('')}
+        </div>` : `<p class="pairing-empty">No pairing suggestions yet for this piece.</p>`}
+      </div>`;
+
+    $('#detailBack').onclick = () => { location.hash = ''; };
+    $('#detailEdit').onclick = () => openEdit(it.id);
+    detail.querySelectorAll('.pairing-item').forEach(p => {
+      p.onclick = () => { location.hash = '#item/' + p.dataset.id; };
+      p.onkeydown = e => { if (e.key === 'Enter') location.hash = '#item/' + p.dataset.id; };
+    });
+  }
+
+  window.addEventListener('hashchange', route);
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -637,7 +1026,10 @@
       $('#prev').classList.add('on');
       let d;
       try { d = await readPhoto(b64); }
-      catch (e) { d = { name: '', category: 'Tops' }; setStatus('Read it but could not tag it — fill this in yourself', true); }
+      catch (e) {
+        d = { name: '', category: 'Tops' };
+        setStatus(e.code === 'no-api-key' ? e.message : 'Read it but could not tag it — fill this in yourself', true);
+      }
       if (d.name) setStatus('Tagged. Adjust anything below.');
       draft = Object.assign({ image: b64 }, d);
       fillFields(d);
@@ -656,6 +1048,8 @@
     if (veil.classList.contains('open')) veil.classList.remove('open');
     const dv = document.getElementById('dumpVeil');
     if (dv && dv.classList.contains('open')) dv.classList.remove('open');
+    const av = document.getElementById('apiKeyVeil');
+    if (av && av.classList.contains('open')) av.classList.remove('open');
   });
 
   $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => tab(b.dataset.tab));
@@ -682,7 +1076,7 @@
       fillFields(d);
       setStatus(d.imageUrl ? 'Found it. Adjust anything below.' : 'Found the details but no image — add a photo later.');
     } catch (e) {
-      setStatus('Could not read that page. Fill this in yourself.', true);
+      setStatus(e.code === 'no-api-key' ? e.message : 'Could not read that page. Fill this in yourself.', true);
       draft = { source: u };
       fillFields({ category: 'Tops' });
     }
@@ -717,18 +1111,20 @@
 
     await saveIndex();
     veil.classList.remove('open');
-    render();
+    route();
     toast(editingId ? 'Updated' : 'Hung on the rail');
   };
 
   $('#del').onclick = async () => {
     if (!editingId) return;
-    items = items.filter(i => i.id !== editingId);
-    delete imgs[editingId];
-    try { await window.storage.delete(IMG(editingId)); } catch (e) {}
+    const removedId = editingId;
+    items = items.filter(i => i.id !== removedId);
+    delete imgs[removedId];
+    try { await window.storage.delete(IMG(removedId)); } catch (e) {}
     await saveIndex();
     veil.classList.remove('open');
-    render();
+    if (location.hash === '#item/' + removedId) location.hash = '';
+    else route();
     toast('Removed');
   };
 
@@ -802,7 +1198,7 @@
 
     items.sort((a, b) => (b.added || 0) - (a.added || 0));
     await saveIndex();
-    render();
+    route();
 
     if (!added) toast('Everything in that file was already here');
     else if (skippedImages) toast('Added ' + added + ' pieces · ' + skippedImages + ' images did not fit');
@@ -817,6 +1213,36 @@
   $('#dumpCopy').onclick = async () => {
     try { await navigator.clipboard.writeText($('#dumpText').value); toast('Copied'); }
     catch (e) { $('#dumpText').select(); toast('Press copy on your keyboard'); }
+  };
+
+  const apiKeyVeil = $('#apiKeyVeil');
+  async function openApiKeySheet() {
+    const key = await getApiKey();
+    $('#apiKeyInput').value = '';
+    $('#apiKeyInput').placeholder = key ? 'sk-ant-…' + key.slice(-4) + ' (saved — paste a new key to replace)' : 'sk-ant-…';
+    $('#apiKeyStatus').textContent = key ? 'A key is saved in this browser.' : 'No key saved yet.';
+    $('#apiKeyStatus').className = 'status';
+    apiKeyVeil.classList.add('open');
+  }
+  $('#apiKeyBtn').onclick = openApiKeySheet;
+  $('#apiKeyClose').onclick = () => apiKeyVeil.classList.remove('open');
+  apiKeyVeil.onclick = e => { if (e.target === apiKeyVeil) apiKeyVeil.classList.remove('open'); };
+  $('#apiKeySave').onclick = async () => {
+    const v = $('#apiKeyInput').value.trim();
+    if (!v) { $('#apiKeyStatus').textContent = 'Paste a key first'; $('#apiKeyStatus').className = 'status err'; return; }
+    try {
+      await window.storage.set(APIKEY, v);
+      apiKeyVeil.classList.remove('open');
+      toast('API key saved');
+    } catch (e) {
+      $('#apiKeyStatus').textContent = 'Could not save that';
+      $('#apiKeyStatus').className = 'status err';
+    }
+  };
+  $('#apiKeyClear').onclick = async () => {
+    try { await window.storage.delete(APIKEY); } catch (e) {}
+    apiKeyVeil.classList.remove('open');
+    toast('API key removed');
   };
 
   let tt;

@@ -1,111 +1,94 @@
 # The Rail — Project Brief
 
-> **Read this first.** This file is the complete handoff context for an AI wardrobe app.
-> It is written to be pasted into Cursor, Claude Code, ChatGPT, or any other agent with
-> zero prior context. Companion file: `wardrobe.html` (the working P0 prototype).
+> **Read this first.** This file is the **build brief** — current state, current
+> priorities, kept short so any coding agent can pick up context fast. It is not the
+> strategy document.
+>
+> **Full product strategy — target persona reasoning, competitive research, monetization
+> options, and feature brainstorming — lives in the PRD (Google Doc):**
+> https://docs.google.com/document/d/1kkXS5PqcRQm0tULCa8dwkfwHpVq71OBwgFfPsvhjhJ4/edit
+>
+> **The PRD is the source of truth for product decisions. This file is the source of truth
+> for what to build right now.** A Google Doc can't sync to a git repo automatically, so
+> when the two disagree, the PRD wins — tell the owner and update this file to match.
+>
+> **Owner:** product-led, non-technical. Explain decisions in product terms, not just
+> implementation terms. Assume the owner can read code and direct the work but not write it
+> from scratch.
 
 ---
 
-## 1. Vision
+## 1. Vision & persona
 
 A personal wardrobe you can browse like a shop you already own — and a stylist that helps
 you get more out of it, both by combining what you have and by telling you what to buy next.
+Mission (long-term, from the PRD): help people amplify their self-identity through fashion.
 
 The core insight: **"I have nothing to wear" is almost never a supply problem — it's a
 recall problem.** People forget what they own. So the product treats your own closet as a
 storefront: browsable, desirable, well-photographed, well-tagged. But cataloging is the
-foundation, not the goal. The actual vision is broader and has two equally important halves:
+foundation, not the goal. Two equally important halves:
 
 1. **Recall** — see everything you own, clearly enough that you actually use it.
 2. **Guidance** — get inspiration for how to combine what you already have, and clear
    direction on what new pieces would expand the wardrobe most, based on what's actually
    in it.
 
-Long-term the product should generalize beyond a single user — anyone can catalog their
-wardrobe and develop a point of view about their own style. For now, the owner is building
-this for their own personal use, and isn't concerned with how many other apps already do
-something similar.
+**MVP target persona: time-poor professional men** who spend meaningfully on clothing,
+repeatedly default to the same outfits, and care about looking appropriate for work, dates,
+and social occasions. Chosen deliberately over targeting women's fashion first — lower
+existing competition, narrower recommendation complexity, a more forgiving quality bar, and
+a smaller ingestion burden. Full reasoning and the competitive comparison are in the PRD.
 
-**Owner:** product-led, non-technical. Decisions should be explained in product terms, not
-just implementation terms. Assume the owner can read code and direct the work but not
-write it from scratch.
+**The owner is persona zero** — genuinely fits the MVP target persona, not building a
+personal tool that's being generalized later. This is being built as a product for other
+people from the start. That said, near-term validation on the owner's own wardrobe and
+habits doubles as real user research, so building for the owner first is still correct
+practice, not a compromise.
 
 ---
 
-## 2. Feature priorities
-
-### As originally specced by the owner
+## 2. Feature priorities (from the PRD)
 
 | Pri | Feature |
 |-----|---------|
-| P0 | Storefront-like view of all wardrobe items. Upload via photo **or** by pasting a retailer URL. |
-| P1 | Under each item, suggestions for what pairs well with it — from the wardrobe, or from online for shopping inspiration. |
-| P1 | Overall wardrobe analysis → recommend purchases that fill gaps (e.g. no winter coat, too few coloured pieces). |
-| P2 | Photorealistic virtual try-on. User uploads a few photos of themselves; outfits get rendered onto them. |
-| P2 | Shopping integration — direct links to retailers, with budget constraints as an input. |
+| P0 | Storefront-like view of the existing wardrobe |
+| P0 | Styling suggestions underneath each item of the existing wardrobe |
+| P0 | Bulk deleting of items unreliably ingested |
+| P1 | Outfit-of-the-day suggestions (occasion, weather), incl. push notifications |
+| P1 | "Shop this new item to unlock outfits with something you already own" |
+| P1 | Personalise suggestions based on what the user accepts / rejects |
+| P1 | Build a style profile from uploaded looks or influencers the user likes |
+| P1 | Expose different brands & colours in shopping suggestions, at the item level |
+| P1 | Wardrobe-level gap analysis → recommend purchases that complete the wardrobe |
+| P2 | Virtual try-on |
+| P2 | Trip planning — capsule packing + destination-seeded shopping inspiration |
+| P2 | Browser/shopping plug-in flagging new styles or "you own something like this" |
+| P2 | In-person camera point-and-capture ("do I already own this or similar?") |
+| P2 | Find-similar-while-shopping (budget/material-matched alternatives) |
+| P3 | Guided NUX through styling decisions, monthly upgrade suggestions, influencer look-alike, gift wishlist |
 
-### Recommended resequencing (and why)
+**Why try-on is P2, not P1 or P0:** it's the most technically expensive item on this list —
+photorealism is hard, and it needs full-resolution source images (the retired prototype's
+640px pipeline was explicitly inadequate for it, see §4). It's best understood as a
+shareable growth artifact, not a core utility. Building it early risks eating the whole MVP
+timeline on a feature that isn't the wedge.
 
-This is a **revision** of the above, not a replacement. The reasoning matters more than the
-order:
+**Open question — not yet decided:** wear logging (did the user actually wear a suggested
+outfit) isn't a named feature anywhere above, but the PRD's own north-star metric —
+*"percentage of suggestions actually worn"* — can't be measured without it. Current plan is
+to fold logging into whichever feature it naturally attaches to as that gets built, but no
+feature owns it yet. Worth revisiting before outfit-of-the-day (P1) ships, since wear data
+compounds and every week without it is data that's gone for good.
 
-1. **P0 — Low-friction ingestion, then the storefront view.**
-   The original spec's two upload paths (one photo per item, one URL per item) are both
-   manual per-item work — 60–100 discrete actions before the app does anything useful.
-   This is the single biggest reason wardrobe apps have terrible retention. Two cheaper
-   paths should be added:
-   - **Bulk extraction from existing photos of the user wearing outfits.** One folder of
-     5–10 full-body photos, one pass, dozens of garments isolated and rebuilt as clean
-     standalone images. (This technique was publicly demonstrated in mid-2026 by Thijs
-     Simonian using an agentic model with camera-roll access; the safer version uses a
-     small user-selected folder instead of the whole library.)
-   - **Retailer order-confirmation email parsing.** Purchase history is already structured
-     data: product name, image, price, and URL. Likely covers a large share of what
-     someone owns at near-zero effort.
+**Monetization** (referral take-rate, B2B white-label to brands, resale-flagging) is
+optionality for later, not a constraint on the MVP build — don't let it shape technical
+decisions right now. Full list in the PRD's Motivation section.
 
-2. **P0.5 — Taste calibration.**
-   Nothing in the original spec represents what the user actually *likes*. Without it,
-   every recommendation regresses to the mean and everyone gets suggested a white tee and
-   dark denim. Cheap fix: rate 20–30 looks during onboarding, or name 3–5 people whose
-   style the user wants. High leverage on everything downstream.
-
-3. **P1 — Wardrobe analysis, framed by occasion not category.**
-   "Not enough coloured items, no winter jackets" is a checklist against a generic ideal
-   wardrobe — which is what any LLM produces for free, and it's mediocre. The useful
-   version is coverage against the user's *actual life*: how they work, where they eat,
-   where they travel and in what climate. Occasion-driven gaps, not category-driven ones.
-
-4. **P1 — "What do I wear today," plus wear logging.**
-   **This is the biggest gap in the original spec.** Every specced feature is either
-   build-your-closet or buy-more-clothes. Nothing gives a reason to open the app twice.
-   Outfit-for-today is the only recurring use case, and wear data is the only thing here
-   that compounds. With it, gap analysis stops being "you need a winter jacket" and becomes
-   "you own four shirts you never touch — here's the one piece that would activate them."
-
-5. **P2 — Pairing suggestions + retailer search links.**
-   Note: the "shopping inspiration" half of the original P1 depends on the same product-data
-   infrastructure as the original P2 shopping integration. Don't build a product catalog.
-   Deep-link to a retailer *search query* instead — enormously less effort, small loss in
-   user value at this stage.
-
-6. **P2 — Virtual try-on.**
-   Correctly deprioritized for build order, but it should be understood as the **shareable
-   artifact and growth surface**, not a utility feature. It's the only thing here that
-   produces a "show someone this" moment.
-
-### Known strategic tension
-
-The owner wants this both as a personal project *and* as something generalizable. These
-pull in different directions — the owner is the ideal user of a wardrobe app for exactly
-zero other people. Building for themselves first is correct, but track which decisions are
-self-serving versus generalizable.
-
-Note: other apps in this space (Sty AI, Wardrowbe, Pronti and others) already ship photo
-cataloging, AI outfit suggestions, and try-on. That's not a blocker — the owner is building
-this for personal use first and isn't optimizing for competitive differentiation right now.
-If and when this generalizes to other users, differentiation is worth revisiting then
-(likely candidates: lower ingestion friction, or accumulated wear/outcome data) — but it's
-not a constraint on what gets built today.
+**Severity/frequency scoring of core user problems** (in the PRD) currently ties several
+problems for top priority and isn't meant to drive build order today — P0 is fixed to
+ingestion + storefront regardless, since it's the prerequisite for everything else. Revisit
+the scoring once P0 is live, to decide what P1 problem to tackle first.
 
 ---
 
@@ -113,7 +96,8 @@ not a constraint on what gets built today.
 
 The look is **a boutique stockroom, not a retail site.** Cool stone ground, deep ink,
 saturated cobalt. Condensed shop-signage display type; monospace for anything that reads as
-garment data.
+garment data. Validated in the retired prototype (§4) — carry it forward into the real
+build exactly as specified here.
 
 Deliberately avoided: warm cream + high-contrast serif + terracotta accent (the default
 AI-generated aesthetic), near-black with an acid accent, and broadsheet layouts.
@@ -161,21 +145,24 @@ UI chrome. Keep it.
 
 Zero border-radius throughout. 1px borders, no shadows.
 
-### Signature element — the swing tag
+### Item hover & detail (evolved past the original swing tag)
 
-The one memorable thing. Everything else stays quiet.
+The prototype's original signature element was a small swing tag that rotated into view on
+hover. It has since been **replaced** by a fuller interaction, validated in the retired
+prototype (§4) and worth carrying forward as-is:
 
-A small paper tag pinned to the top-right of each garment frame, with a punched hole
-rendered as a bordered circle. It is invisible at rest; on hover or keyboard focus the card
-lifts 6px and the tag rotates in from `-4deg / scale(.82) / opacity 0` to
-`2.5deg / scale(1) / opacity 1`, with `transform-origin: 50% 8px` so it pivots from the
-hole like real swing tags do.
+- **Hover** dims the garment image under a scrim and surfaces the item's info (name,
+  formality dots, pattern, material, season codes, colour swatches) plus **3–4 pairing
+  suggestion pills** at the bottom of the card. An "Edit" button sits top-right of the
+  overlay and opens editing directly, without navigating away.
+- **Clicking** a card (anywhere but the edit button) opens that item's own detail page:
+  larger image, fuller facts, notes, and a "Styles well with" section showing paired items
+  as their own clickable cards — clicking one navigates to *that* item's detail page, so a
+  user can walk the wardrobe through pairings.
+- On mobile (no hover state), tapping a tile should go straight to the item detail page.
 
-The tag shows: formality as filled dots, pattern, season codes abbreviated to two letters,
-and a row of colour swatches.
-
-`prefers-reduced-motion` disables the lift and rotation and leaves the tag permanently
-visible.
+`prefers-reduced-motion` should disable the lift/rotation transitions and leave hover
+content in its revealed state.
 
 ### Copy voice
 
@@ -186,11 +173,42 @@ Actions keep the same verb through the flow — "Add a piece" → "Hung on the r
 
 ---
 
-## 4. Current implementation (P0)
+## 4. The prototype phase (retired — reference only)
 
-Single-file HTML + vanilla JS, no build step, no framework. See `wardrobe.html`.
+Before the real build, the product was explored as a single-file HTML + vanilla JS
+prototype (`wardrobe.html`) — no build step, no backend, no accounts. Everything lived in
+one browser's local storage, with AI calls made directly from the browser using a
+user-pasted Anthropic API key. It was never meant to reach anyone but the owner, and it
+structurally can't: no accounts, no server, no multi-user data isolation. That gap is the
+main reason the real build (§5) is starting now instead of continuing to extend this file.
 
-### Data model
+**It is retired, not deleted.** Don't add new features to it — it's kept as a design and
+data-model reference for the real build below.
+
+### What it got right — preserve these in the real build
+
+- The visual design system (§3) — validated, carry it forward exactly.
+- The hover/detail interaction pattern (§3) — validated, carry it forward.
+- Splitting metadata from images in storage (garment rows vs. an object-storage bucket for
+  images is the same instinct, done properly).
+- Every AI-tagged field is user-editable before saving — auto-tagging *will* get things
+  wrong; don't make the edit path optional.
+- Merge-on-import semantics (skip already-existing IDs) — useful for any future
+  export/import or migration tooling.
+
+### What it got wrong — don't carry forward
+
+- **640px / quality-0.72 JPEG compression.** Nowhere near enough resolution for virtual
+  try-on later. The real build must store full-resolution originals (object storage, not
+  browser local storage).
+- **No accounts, no backend.** API calls went directly from the browser using a key the
+  owner pasted in themselves. The real build needs a server that owns the API key.
+- **URL-based product-page reading was flaky** — retailers block scrapers aggressively.
+  Bulk photo ingestion is the more reliable path forward (see §5).
+- **Pairing suggestions were hand-authored mock data**, not real computation — a stand-in
+  used to validate the hover/detail UI (§3) before building real pairing logic.
+
+### Data model (carry forward into the real schema)
 
 ```jsonc
 // item
@@ -214,27 +232,7 @@ Single-file HTML + vanilla JS, no build step, no framework. See `wardrobe.html`.
 Categories (fixed list, order matters for the filter rail):
 `Tops, Knitwear, Bottoms, Outerwear, Suiting, Footwear, Activewear, Accessories`
 
-### Storage keys
-
-| Key | Contents |
-|-----|----------|
-| `wardrobe:index` | JSON array of all item objects (metadata only) |
-| `wardrobe:img:<id>` | Raw base64 JPEG for one item |
-
-Split deliberately: metadata rewrites on every edit, images don't. Also dodges the
-per-key size cap. Images load in parallel after first paint so cards appear immediately and
-fill in progressively.
-
-### Image pipeline
-
-Uploaded files are drawn to a canvas, resized so the longest edge is **640px**, and encoded
-as JPEG at **quality 0.72** (~30–60KB each).
-
-> ⚠️ **640px is not enough resolution to feed a try-on model later.** If virtual try-on is
-> still on the roadmap, the real backend must retain originals. This compression is a
-> prototype-storage compromise, not a design decision.
-
-### AI calls
+### AI calls made by the prototype (reference for the real build's server-side calls)
 
 Two, both to `claude-sonnet-4-6`, both returning strict JSON (no prose, no fences; the
 parser also slices between the first `{` and last `}` as a safety net).
@@ -250,12 +248,10 @@ Shared response schema:
  "material", "formality":1-5, "seasons":[], "notes"}
 ```
 
-Every field is editable by the user before saving — auto-tagging *will* get things wrong,
-and the edit path is not optional.
-
 ### Portability
 
-Export writes one self-contained JSON file:
+Prototype export format, useful as the importer format for the real build so nothing
+catalogued so far is lost:
 
 ```jsonc
 {
@@ -266,34 +262,30 @@ Export writes one self-contained JSON file:
 }
 ```
 
-Import **merges** — it skips any item whose `id` already exists, so re-importing is safe and
-non-destructive. On the receiving side this is ~20 lines to parse.
-
 ---
 
-## 5. Known limitations of the current build
+## 5. Now building: the real MVP
 
-1. **Storage caps out around 100–120 items.** Real wardrobes may exceed this.
-2. **Images are 640px.** Fine for the grid, insufficient for try-on. See warning above.
-3. **URL reading is flaky.** Retailers block scrapers aggressively; expect meaningful
-   failure rates. The reliable long-term path for bulk ingest is order-confirmation email
-   parsing, not URL fetching.
-4. **Not deployable.** It runs in a sandboxed environment tied to one account — no shareable
-   URL, no proper mobile access. Export/import exists precisely because of this.
-5. **No wear logging, no outfit generation, no taste model.** All three are the highest-value
-   next additions (see §2).
+Starting the actual product now, scoped strictly to the three **P0** features in §2:
+storefront view, per-item styling suggestions, and bulk delete of bad ingestions. No push
+notifications, no multi-tenant/B2B anything, no try-on — those come later, per §2.
 
----
+Stack: Next.js + Postgres + S3-compatible object storage for full-resolution images. Needs
+real accounts and a backend that holds the Anthropic API key server-side — no more
+user-pasted keys.
 
-## 6. Suggested next steps for whichever agent picks this up
+Suggested build order:
 
-1. Port to a real stack. Suggested: Next.js + Postgres + S3-compatible object storage for
-   images at full resolution. Keep the single-file prototype's visual system exactly —
-   it's specified in §3 and it works.
-2. Write the `the-rail/v1` importer first, so nothing catalogued in the prototype is lost.
-3. Build bulk photo ingestion (§2 item 1) before adding any new surface. Ingestion friction
-   is the thing that kills this category.
-4. Then wear logging + outfit-for-today, because that's what makes everything else good.
+1. **Accounts + a real backend that owns the Anthropic API key.** Fixes the prototype's
+   biggest structural gap and is the prerequisite for everything else.
+2. **Wardrobe ingestion + storefront view (P0).** Reuse the prototype's data model (§4) and
+   visual design (§3). Bulk photo ingestion is the priority ingestion path, not
+   one-photo-per-item — see PRD pain point on ingestion burden.
+3. **Bulk delete of bad ingestions (P0).** Ship alongside ingestion, not after — ingestion
+   will be imperfect from day one, and there's no recovery path without this.
+4. **Per-item styling suggestions (P0).** Real computation replacing the prototype's
+   hand-authored mock pairing data. Decide rule-based vs. AI-computed pairing logic as part
+   of this step — not decided yet.
 
-**Do not** start with try-on or shopping integration. They're demo-shaped, and they'll eat
-the whole timeline.
+**Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
+whole timeline — confirmed P2, see §2.

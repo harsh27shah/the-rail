@@ -46,6 +46,15 @@ people from the start. That said, near-term validation on the owner's own wardro
 habits doubles as real user research, so building for the owner first is still correct
 practice, not a compromise.
 
+**Primary usage surface is mobile, not desktop.** Most people will use this from their
+phone — checking the wardrobe, uploading photos, granting camera-roll access. Desktop web
+should work, but isn't the point of the app. This isn't new scope, it's a priority signal
+on things already planned: the hover-overlay interaction (§3) needs its documented
+tap-to-open mobile fallback actually built and tested, not just specified; and bulk photo
+upload (camera roll access, not one-at-a-time) is a real MVP requirement, not a nice-to-have
+— see the garment-cropping item in §5. Development so far has happened in a desktop browser
+for convenience; don't mistake that for the intended primary experience.
+
 ---
 
 ## 2. Feature priorities (from the PRD)

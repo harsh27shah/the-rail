@@ -2,7 +2,16 @@
 
 import { retagItem } from "@/lib/anthropic";
 import { correctGarmentImage } from "@/lib/gemini";
-import { downloadImage, getItem, getItemImagePaths, replaceItemImage, updateItem } from "@/lib/items";
+import {
+  downloadImage,
+  getItem,
+  getItemImagePaths,
+  replaceItemImage,
+  resetToOriginalImage,
+  revertLastCorrection,
+  snapshotForUndo,
+  updateItem,
+} from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 
 /**
@@ -10,6 +19,9 @@ import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
  * Synchronous (unlike the initial extraction) — this is a deliberate action the owner just
  * clicked, so waiting through the ~5-15s while watching for the result is the right UX here,
  * not something to hide in the background. See PROJECT.md §5.
+ *
+ * Snapshots the item's full state first, so the correction can be undone in one step if the
+ * regenerated version comes out worse than what it replaced (a real thing that happens).
  */
 export async function correctImageAction(
   id: string,
@@ -40,6 +52,10 @@ export async function correctImageAction(
     );
     if (!corrected) return { ok: false, error: "Couldn't generate a corrected version — try rephrasing" };
 
+    // Record where we're starting from before anything changes — this is what "Undo last
+    // correction" restores.
+    await snapshotForUndo(id);
+
     await replaceItemImage(id, corrected.data, corrected.mimeType);
 
     // The feedback that fixed the photo often also invalidates what's catalogued about it
@@ -48,18 +64,26 @@ export async function correctImageAction(
     // Best-effort: if this step fails, the photo fix still stands — only the text lags.
     try {
       const retagged = await retagItem(corrected.data, corrected.mimeType, feedback);
-      await updateItem(id, {
-        name: retagged.name || item.name,
-        category: retagged.category ? asCategory(retagged.category) : item.category,
-        color: retagged.color || item.color,
-        palette: retagged.palette?.length ? retagged.palette : item.palette,
-        pattern: retagged.pattern ? asPattern(retagged.pattern) : item.pattern,
-        material: retagged.material || item.material,
-        formality: retagged.formality || item.formality,
-        seasons: retagged.seasons?.length ? asSeasons(retagged.seasons) : item.seasons,
-        notes: retagged.notes || item.notes,
-        source: item.source,
-      });
+      await updateItem(
+        id,
+        {
+          name: retagged.name || item.name,
+          category: retagged.category ? asCategory(retagged.category) : item.category,
+          color: retagged.color || item.color,
+          palette: retagged.palette?.length ? retagged.palette : item.palette,
+          pattern: retagged.pattern ? asPattern(retagged.pattern) : item.pattern,
+          material: retagged.material || item.material,
+          formality: retagged.formality || item.formality,
+          seasons: retagged.seasons?.length ? asSeasons(retagged.seasons) : item.seasons,
+          notes: retagged.notes || item.notes,
+          source: item.source,
+          // A correction can also resolve (or reveal) an occlusion — let the fresh tag decide,
+          // rather than a manual-edit-style blanket clear.
+          needsReview: retagged.occluded === true,
+          reviewNote: retagged.occluded === true ? retagged.occludedNote || "some details were inferred" : null,
+        },
+        { clearReview: false }
+      );
     } catch (e) {
       console.error("Re-tagging failed after photo correction for item", id, e);
     }
@@ -67,5 +91,32 @@ export async function correctImageAction(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+}
+
+/** Undo the last correction — restores the item's fields and shown photo to the snapshot
+ * taken just before it. */
+export async function undoCorrectionAction(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const reverted = await revertLastCorrection(id);
+    if (!reverted) return { ok: false, error: "There's nothing to undo for this piece" };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't undo that" };
+  }
+}
+
+/** Point the shown photo back at the untouched original upload. */
+export async function resetToOriginalAction(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const reset = await resetToOriginalImage(id);
+    if (!reset) return { ok: false, error: "This piece is already showing its original photo" };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't reset that" };
   }
 }

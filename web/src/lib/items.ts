@@ -18,9 +18,29 @@ type Row = {
   notes: string;
   image_path: string | null;
   original_image_path: string | null;
+  previous_state: PreviousState | null;
+  needs_review: boolean | null;
+  review_note: string | null;
   source: string | null;
   added: string;
 };
+
+/** Snapshot of an item's full catalogued state taken right before a correction, so the
+ * correction can be undone in one step. Stored in `items.previous_state` (jsonb). */
+export interface PreviousState {
+  name: string;
+  category: string;
+  color: string;
+  palette: string[];
+  pattern: string;
+  material: string;
+  formality: number;
+  seasons: string[];
+  notes: string;
+  needs_review: boolean;
+  review_note: string | null;
+  image_path: string | null;
+}
 
 function rowToItem(row: Row): Item {
   const admin = getSupabaseAdmin();
@@ -45,6 +65,9 @@ function rowToItem(row: Row): Item {
     notes: row.notes,
     imageUrl,
     originalImageUrl,
+    canUndo: row.previous_state != null,
+    needsReview: row.needs_review ?? false,
+    reviewNote: row.review_note,
     source: row.source,
     added: new Date(row.added).getTime(),
   };
@@ -85,6 +108,9 @@ export interface ItemInput {
   seasons: Season[];
   notes: string;
   source?: string | null;
+  /** Set at ingestion when the tagger had to infer hidden/occluded details. */
+  needsReview?: boolean;
+  reviewNote?: string | null;
 }
 
 /** Uploads a photo to storage and inserts a new item row. Returns the new item's id. */
@@ -118,6 +144,8 @@ export async function createItem(input: ItemInput, photo?: File | null): Promise
       // Set once, here, and never touched again — the ground truth later corrections
       // and re-extractions get checked against, even after image_path is replaced.
       original_image_path: imagePath,
+      needs_review: input.needsReview ?? false,
+      review_note: input.reviewNote ?? null,
       source: input.source ?? null,
     })
     .select("id")
@@ -126,25 +154,40 @@ export async function createItem(input: ItemInput, photo?: File | null): Promise
   return data.id as string;
 }
 
-export async function updateItem(id: string, input: ItemInput): Promise<void> {
+/**
+ * `clearReview` (default true) wipes the "check this" flag — a manual edit counts as the
+ * owner having reviewed the item. The post-correction re-tag path passes `false` and sets
+ * the flag itself from the fresh tagging result instead.
+ */
+export async function updateItem(
+  id: string,
+  input: ItemInput,
+  { clearReview = true }: { clearReview?: boolean } = {}
+): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
-  const { error } = await admin
-    .from("items")
-    .update({
-      name: input.name,
-      category: input.category,
-      color: input.color,
-      palette: input.palette,
-      pattern: input.pattern,
-      material: input.material,
-      formality: input.formality,
-      seasons: input.seasons,
-      notes: input.notes,
-      source: input.source ?? null,
-    })
-    .eq("id", id);
+  const patch: Record<string, unknown> = {
+    name: input.name,
+    category: input.category,
+    color: input.color,
+    palette: input.palette,
+    pattern: input.pattern,
+    material: input.material,
+    formality: input.formality,
+    seasons: input.seasons,
+    notes: input.notes,
+    source: input.source ?? null,
+  };
+  if (clearReview) {
+    patch.needs_review = false;
+    patch.review_note = null;
+  } else if (input.needsReview !== undefined) {
+    patch.needs_review = input.needsReview;
+    patch.review_note = input.reviewNote ?? null;
+  }
+
+  const { error } = await admin.from("items").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -172,6 +215,107 @@ export async function replaceItemImage(
 
   const { error } = await admin.from("items").update({ image_path: imagePath }).eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Records the item's current catalogued state into `previous_state` so the correction about
+ * to happen can be undone in one step. Call this immediately before a correction mutates
+ * anything. Overwrites any prior snapshot — undo is one level deep, on purpose ("simple
+ * undo", per PROJECT.md §5).
+ */
+export async function snapshotForUndo(id: string): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const { data, error } = await admin
+    .from("items")
+    .select(
+      "name, category, color, palette, pattern, material, formality, seasons, notes, needs_review, review_note, image_path"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return;
+
+  const snapshot: PreviousState = {
+    name: data.name,
+    category: data.category,
+    color: data.color,
+    palette: data.palette ?? [],
+    pattern: data.pattern,
+    material: data.material,
+    formality: data.formality,
+    seasons: data.seasons ?? [],
+    notes: data.notes,
+    needs_review: data.needs_review ?? false,
+    review_note: data.review_note ?? null,
+    image_path: data.image_path,
+  };
+  const { error: updateError } = await admin
+    .from("items")
+    .update({ previous_state: snapshot })
+    .eq("id", id);
+  if (updateError) throw new Error(updateError.message);
+}
+
+/** Restores the snapshot taken before the last correction (fields + which image is shown)
+ * and clears it. Returns false if there was nothing to undo. */
+export async function revertLastCorrection(id: string): Promise<boolean> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const { data, error } = await admin
+    .from("items")
+    .select("previous_state")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const prev = data?.previous_state as PreviousState | null | undefined;
+  if (!prev) return false;
+
+  const { error: updateError } = await admin
+    .from("items")
+    .update({
+      name: prev.name,
+      category: prev.category,
+      color: prev.color,
+      palette: prev.palette,
+      pattern: prev.pattern,
+      material: prev.material,
+      formality: prev.formality,
+      seasons: prev.seasons,
+      notes: prev.notes,
+      needs_review: prev.needs_review,
+      review_note: prev.review_note,
+      image_path: prev.image_path,
+      previous_state: null,
+    })
+    .eq("id", id);
+  if (updateError) throw new Error(updateError.message);
+  return true;
+}
+
+/** Points the item's shown image back at the untouched original upload. Always safe — the
+ * original is immutable — so this doesn't write an undo snapshot. Returns false if there's
+ * no distinct original to go back to. */
+export async function resetToOriginalImage(id: string): Promise<boolean> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const { data, error } = await admin
+    .from("items")
+    .select("image_path, original_image_path")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.original_image_path || data.original_image_path === data.image_path) return false;
+
+  const { error: updateError } = await admin
+    .from("items")
+    .update({ image_path: data.original_image_path })
+    .eq("id", id);
+  if (updateError) throw new Error(updateError.message);
+  return true;
 }
 
 export interface ItemImagePaths {

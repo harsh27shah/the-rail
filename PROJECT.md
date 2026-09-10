@@ -456,7 +456,32 @@ Suggested build order:
     - **Known limitation:** no resume. Close the tab mid-run and the photos not yet
       processed are simply not uploaded (the ones already done are saved). Fine for now;
       revisit if bulk runs get large enough that this bites.
-11. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+11. ✅ **Undo for corrections.** Live — a regeneration sometimes comes out worse than what it
+    replaced (confirmed in real use). New `previous_state jsonb` column on `items` holds a
+    one-level snapshot (all catalogued fields + which image is shown) taken right before a
+    correction. The correction dialog now offers **"Undo last correction"** (restores that
+    snapshot, fields and photo) when one exists, and **"Reset to original photo"** (points
+    the shown image back at the untouched upload — always safe, so it doesn't consume the
+    undo slot). One level deep on purpose — "simple undo", not a full history.
+12. ✅ **Low-confidence flag for inferred details.** Live — when a garment is only partly
+    visible (a tee mostly hidden under an overshirt, a cropped shot), the tagger fills in
+    the unseen parts and gets them wrong in ways the owner spots instantly (long sleeves on
+    a short-sleeve tee). The tag schema now has `occluded` / `occludedNote`; an occluded
+    item is stored with `needs_review = true` + a `review_note`, shown as a small "! CHECK"
+    badge on the grid card and a one-line note on the detail page. Editing the item clears
+    the flag (that counts as having reviewed it); a post-correction re-tag re-evaluates it.
+13. ⬜ **Duplicate detection.** Approach validated (spike, not yet built) — Claude visual
+    comparison of two garment photos, asked "same physical item or two different garments?".
+    Spike result on the owner's real wardrobe: **5/5 correct on genuinely-different pairs,
+    all at 0.98–0.99 confidence** — so the feature won't nag about two similar-but-distinct
+    white tees, which was the main risk. It's *conservative*: it called a likely-true
+    duplicate "different" (0.7) because generated details differed between the two — i.e. it
+    misses some dupes rather than inventing them, the right way to fail for a
+    flag-for-review flow. Plan: run it in the background after upload, scoped to same-
+    category items and pre-filtered to plausible candidates (shared colour word / similar
+    name) to keep call volume down; flag suspected pairs for the owner to confirm
+    ("remove the new one" / "keep both") — never auto-delete.
+14. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

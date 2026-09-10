@@ -56,6 +56,8 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
           formality: t.formality || 3,
           seasons: asSeasons(t.seasons),
           notes: t.notes || "",
+          needsReview: t.occluded === true,
+          reviewNote: t.occluded === true ? t.occludedNote || "some details were inferred" : null,
         },
         photo
       );

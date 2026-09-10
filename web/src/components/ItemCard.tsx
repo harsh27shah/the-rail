@@ -44,6 +44,14 @@ export function ItemCard({
     >
       <div className={`frame${item.imageUrl ? "" : " empty"}`}>
         {item.imageUrl && <img src={item.imageUrl} alt="" />}
+        {item.needsReview && !selectMode && (
+          <span
+            className="review-badge"
+            title={item.reviewNote ?? "Some details were inferred from the photo — worth a check"}
+          >
+            Check
+          </span>
+        )}
         {selectMode && (
           <input
             type="checkbox"
@@ -73,7 +81,12 @@ export function ItemCard({
               >
                 Edit
               </button>
-              <ImageCorrection itemId={item.id} originalImageUrl={item.originalImageUrl} variant="icon" />
+              <ImageCorrection
+                itemId={item.id}
+                originalImageUrl={item.originalImageUrl}
+                canUndo={item.canUndo}
+                variant="icon"
+              />
             </div>
           )}
           <div className="overlay-info">

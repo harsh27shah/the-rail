@@ -25,12 +25,25 @@ create table if not exists items (
   original_image_path text, -- the true source photo, set once at upload and never
                              -- overwritten — corrections are grounded against this, not
                              -- against a possibly-already-wrong generated image
+  previous_state jsonb,      -- one-level undo: the full catalogued state (fields + the
+                             -- image_path) as it was just before the last correction, so
+                             -- "undo this correction" can put everything back. Cleared once
+                             -- undone. Null when there's nothing to undo.
+  needs_review boolean not null default false, -- the tagger inferred details it couldn't
+                             -- actually see (a garment partly hidden behind another layer,
+                             -- cropped, folded) — surface a "check this" nudge. Cleared
+                             -- when the owner edits the item (that counts as reviewing it).
+  review_note text,          -- short phrase on what was inferred, e.g. "sleeve length
+                             -- hidden under jacket"
   source text,               -- originating product URL, if added via a link
   added timestamptz not null default now()
 );
 
--- Existing tables from before this column existed:
+-- Existing tables from before these columns existed:
 alter table items add column if not exists original_image_path text;
+alter table items add column if not exists previous_state jsonb;
+alter table items add column if not exists needs_review boolean not null default false;
+alter table items add column if not exists review_note text;
 
 create index if not exists items_category_idx on items (category);
 create index if not exists items_added_idx on items (added desc);

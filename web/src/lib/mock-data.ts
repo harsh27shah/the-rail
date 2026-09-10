@@ -44,6 +44,9 @@ export const MOCK_ITEMS: Item[] = RAW.map(
       notes,
       imageUrl: garmentIllustration(id, category, palette, pattern),
       originalImageUrl: null, // mock data has no distinct "original" photo
+      canUndo: false,
+      needsReview: false,
+      reviewNote: null,
       source: null,
       added: Date.now() - i * 3600_000,
     };

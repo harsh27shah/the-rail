@@ -35,6 +35,13 @@ export interface Item {
   /** Public URL of the true original uploaded photo, never overwritten — shown during
    * correction so the user has something real to check their own feedback against. */
   originalImageUrl: string | null;
+  /** True when there's a one-level undo available (the item has been corrected at least
+   * once since it was last reset). Drives whether "Undo last correction" shows. */
+  canUndo: boolean;
+  /** The tagger inferred details it couldn't actually see in the photo (garment partly
+   * hidden, cropped, folded). `reviewNote` is a short phrase on what was guessed. */
+  needsReview: boolean;
+  reviewNote: string | null;
   /** Originating product URL, if added via a link rather than a photo. */
   source: string | null;
   /** Epoch ms. */

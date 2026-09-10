@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { correctImageAction } from "@/app/item/[id]/correct-actions";
+import {
+  correctImageAction,
+  resetToOriginalAction,
+  undoCorrectionAction,
+} from "@/app/item/[id]/correct-actions";
 
 /**
  * Free-form feedback is the whole interaction — no preset category buttons. Validated
@@ -11,6 +15,9 @@ import { correctImageAction } from "@/app/item/[id]/correct-actions";
  * result, while specific feedback ("too shiny, should be matte") measurably does. Rather
  * than guess at a fixed set of reasons, the field itself asks for specificity and the
  * placeholder shows what that level of detail actually looks like — the user drives it.
+ *
+ * Also the escape hatch when a regeneration comes out worse than what it replaced: undo the
+ * last correction (fields + photo), or go all the way back to the untouched original.
  */
 const EXAMPLE_PLACEHOLDER =
   'e.g. "It\'s a deeper navy blue than this, and the material should look more matte, less shiny."';
@@ -18,10 +25,13 @@ const EXAMPLE_PLACEHOLDER =
 export function ImageCorrection({
   itemId,
   originalImageUrl,
+  canUndo = false,
   variant = "text",
 }: {
   itemId: string;
   originalImageUrl: string | null;
+  /** True when the last correction can still be undone (see PROJECT.md §5). */
+  canUndo?: boolean;
   /** "text" — full "Not quite right?" button, used on the item detail page.
    *  "icon" — small glyph-only trigger, used on the grid card's hover overlay. */
   variant?: "text" | "icon";
@@ -29,7 +39,7 @@ export function ImageCorrection({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState<null | "correct" | "undo" | "reset">(null);
   const [error, setError] = useState<string | null>(null);
 
   function openModal(e: React.MouseEvent) {
@@ -38,7 +48,7 @@ export function ImageCorrection({
   }
 
   function closeModal() {
-    if (submitting) return;
+    if (busy) return;
     setOpen(false);
     setFeedback("");
     setError(null);
@@ -49,10 +59,10 @@ export function ImageCorrection({
       setError("Describe what's wrong first");
       return;
     }
-    setSubmitting(true);
+    setBusy("correct");
     setError(null);
     const result = await correctImageAction(itemId, feedback.trim());
-    setSubmitting(false);
+    setBusy(null);
     if (result.ok) {
       closeModal();
       router.refresh();
@@ -60,6 +70,22 @@ export function ImageCorrection({
       setError(result.error);
     }
   }
+
+  async function runRevert(kind: "undo" | "reset") {
+    setBusy(kind);
+    setError(null);
+    const result =
+      kind === "undo" ? await undoCorrectionAction(itemId) : await resetToOriginalAction(itemId);
+    setBusy(null);
+    if (result.ok) {
+      closeModal();
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
+  }
+
+  const working = busy !== null;
 
   return (
     <>
@@ -95,6 +121,34 @@ export function ImageCorrection({
                 </>
               )}
 
+              {(canUndo || originalImageUrl) && (
+                <div className="correction-reverts">
+                  <p className="hint" style={{ margin: "0 0 6px" }}>
+                    Last try came out worse?
+                  </p>
+                  {canUndo && (
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      onClick={() => runRevert("undo")}
+                      disabled={working}
+                    >
+                      {busy === "undo" ? "Undoing…" : "Undo last correction"}
+                    </button>
+                  )}
+                  {originalImageUrl && (
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      onClick={() => runRevert("reset")}
+                      disabled={working}
+                    >
+                      {busy === "reset" ? "Resetting…" : "Reset to original photo"}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <label htmlFor="correction-feedback">What&rsquo;s off about the photo?</label>
               <p className="hint" style={{ margin: "0 0 8px" }}>
                 Be as specific as you can — it makes a real difference to the result.
@@ -105,15 +159,15 @@ export function ImageCorrection({
                 placeholder={EXAMPLE_PLACEHOLDER}
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                disabled={submitting}
+                disabled={working}
               />
               {error && <div className="status err">{error}</div>}
               <div className="actions">
-                <button type="button" className="btn ghost" onClick={closeModal} disabled={submitting}>
+                <button type="button" className="btn ghost" onClick={closeModal} disabled={working}>
                   Cancel
                 </button>
-                <button type="button" className="btn" onClick={submit} disabled={submitting}>
-                  {submitting ? "Regenerating…" : "Regenerate photo"}
+                <button type="button" className="btn" onClick={submit} disabled={working}>
+                  {busy === "correct" ? "Regenerating…" : "Regenerate photo"}
                 </button>
               </div>
             </div>

@@ -21,7 +21,9 @@ const ITEM_SCHEMA = `{"name":"short descriptive name, max 5 words",
  "material":"best guess",
  "formality":1-5 where 1 is lounge and 5 is formal,
  "seasons":["spring","summer","autumn","winter"],
- "notes":"one short line on styling character"}`;
+ "notes":"one short line on styling character",
+ "occluded":true or false,
+ "occludedNote":"if occluded is true, one short phrase naming what you had to infer rather than see; otherwise empty string"}`;
 
 // The app is British-English throughout (a deliberate design choice, see PROJECT.md) — every
 // free-text field below is rendered straight into the UI, so the model needs to be told
@@ -69,6 +71,19 @@ const CATEGORY_NOTE =
   `pieces (athletic tee, leggings, running shorts) are catalogued the same as any other ` +
   `garment — "Tops" or "Bottoms" by ordinary function, not a separate category.`;
 
+// When a garment is only partly visible (a t-shirt mostly hidden under an overshirt, a
+// cropped photo, a folded item), the model fills in the unseen parts — and gets them wrong
+// in ways the owner would catch instantly (long sleeves on what's actually a short-sleeve
+// tee). Have it flag that so the UI can nudge the owner to verify, rather than presenting a
+// guess as fact.
+const OCCLUSION_NOTE =
+  `Set "occluded" to true when a meaningful part of the garment is NOT actually visible in ` +
+  `the photo — hidden behind another layer, cropped out of frame, or folded/bunched so its ` +
+  `shape can't be read — and you therefore had to infer details (sleeve length, hem, ` +
+  `neckline, full cut) rather than see them. When it's true, put a short phrase in ` +
+  `"occludedNote" naming what was inferred (e.g. "sleeve length hidden under jacket"). If ` +
+  `the whole garment is clearly visible, set "occluded" to false and "occludedNote" to "".`;
+
 const PROMPT =
   `This photo may show a person wearing multiple distinct garments that should each become ` +
   `a separate wardrobe entry — most commonly a top and a bottom (e.g. a shirt and jeans), ` +
@@ -78,7 +93,7 @@ const PROMPT =
   `entry. Skip minor accessories (jewellery, watches, bags) unless one is clearly the main ` +
   `subject of the photo. If genuinely only one distinct garment is visible, return an ` +
   `array containing just that one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ` +
-  `${CATEGORY_NOTE}\n\n` +
+  `${CATEGORY_NOTE} ${OCCLUSION_NOTE}\n\n` +
   `Return ONLY a JSON array, no prose and no markdown fences — one object per garment, ` +
   `each using this schema:\n${ITEM_SCHEMA}`;
 
@@ -92,6 +107,8 @@ export interface TaggedFields {
   formality: number;
   seasons: string[];
   notes: string;
+  occluded?: boolean;
+  occludedNote?: string;
 }
 
 function client(): Anthropic {
@@ -117,8 +134,8 @@ const RETAG_PROMPT = (feedback: string) =>
   `photo and on the feedback above — don't just repeat old assumptions if the photo or ` +
   `the feedback contradicts them (e.g. if the feedback says it's a t-shirt, not a ` +
   `sweatshirt, catalogue it as a t-shirt). ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ` +
-  `${CATEGORY_NOTE} Return ONLY a single JSON object (not an array), no prose and no ` +
-  `markdown fences, using this schema:\n${ITEM_SCHEMA}`;
+  `${CATEGORY_NOTE} ${OCCLUSION_NOTE} Return ONLY a single JSON object (not an array), no ` +
+  `prose and no markdown fences, using this schema:\n${ITEM_SCHEMA}`;
 
 function parseJsonObjectReply(text: string): TaggedFields {
   const clean = text.replace(/```json|```/g, "").trim();

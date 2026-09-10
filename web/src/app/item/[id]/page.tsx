@@ -32,6 +32,12 @@ export default async function ItemDetailPage({
           <div className="detail-sub">
             {item.category} · {item.color}
           </div>
+          {item.needsReview && (
+            <p className="review-note">
+              Part of this piece was hidden in the photo, so some details are a best guess
+              {item.reviewNote ? ` (${item.reviewNote})` : ""}. Worth a look — edit anything that&rsquo;s off.
+            </p>
+          )}
           <div className="detail-facts">
             <div>
               Formality
@@ -60,7 +66,11 @@ export default async function ItemDetailPage({
             <Link href={`/item/${item.id}/edit`} className="btn ghost">
               Edit details
             </Link>
-            <ImageCorrection itemId={item.id} originalImageUrl={item.originalImageUrl} />
+            <ImageCorrection
+              itemId={item.id}
+              originalImageUrl={item.originalImageUrl}
+              canUndo={item.canUndo}
+            />
           </div>
         </div>
       </div>

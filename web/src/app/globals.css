@@ -680,6 +680,52 @@ textarea {
   object-fit: cover;
   display: block;
 }
+/* Undo / reset-to-original controls in the correction dialog — secondary to the regenerate
+   flow, shown only when there's actually something to revert. */
+.correction-reverts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.correction-reverts .hint {
+  flex-basis: 100%;
+}
+
+/* "Check this" — the tagger inferred hidden/occluded details. Kept monochrome on purpose:
+   red is for errors and coverage gaps, cobalt is for interactive/active, and the design
+   system deliberately avoids a warm accent colour. The "!" glyph carries the meaning; the
+   solid ink border makes it read against any photo. */
+.review-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--ink);
+}
+.review-badge::before {
+  content: "! ";
+}
+.review-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--ink);
+  border-left: 3px solid var(--ink);
+}
 
 .pairing-section {
   margin-top: 46px;

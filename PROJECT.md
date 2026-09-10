@@ -186,6 +186,13 @@ Empty state is an invitation: *"The rail is empty / Add your first piece and it 
 tagged, and hung here."* Errors state the problem: *"That file is not a rail export."*
 Actions keep the same verb through the flow — "Add a piece" → "Hung on the rail."
 
+**British English throughout** — a deliberate design choice, not incidental (colour, not
+color; catalogue, not catalog; grey, not gray). This applies to hand-written UI copy and to
+AI-generated text: the Claude tagging prompts (`src/lib/anthropic.ts`) explicitly instruct
+British spelling for every free-text field they return (name, colour, notes, etc.), since
+those values render straight into the UI. If new user-facing copy or a new AI prompt is
+added anywhere, keep it consistent with this.
+
 ---
 
 ## 4. The prototype phase (retired — reference only)

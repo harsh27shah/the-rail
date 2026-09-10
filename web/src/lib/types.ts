@@ -24,7 +24,7 @@ export interface Item {
   name: string;
   category: Category;
   color: string;
-  /** Hex colors, drives swatches + pairing color logic. */
+  /** Hex colours, drives swatches + pairing colour logic. */
   palette: string[];
   pattern: Pattern;
   material: string;

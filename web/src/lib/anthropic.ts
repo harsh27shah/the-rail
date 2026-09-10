@@ -23,15 +23,22 @@ const ITEM_SCHEMA = `{"name":"short descriptive name, max 5 words",
  "seasons":["spring","summer","autumn","winter"],
  "notes":"one short line on styling character"}`;
 
+// The app is British-English throughout (a deliberate design choice, see PROJECT.md) — every
+// free-text field below is rendered straight into the UI, so the model needs to be told
+// explicitly, not just shown "colour" once in the schema key description above.
+const BRITISH_ENGLISH_NOTE =
+  `Write every text value in British English spelling (e.g. "grey" not "gray", "colour" ` +
+  `not "color"), not American.`;
+
 const PROMPT =
   `This photo may show a person wearing multiple distinct garments that should each become ` +
   `a separate wardrobe entry — most commonly a top and a bottom (e.g. a shirt and jeans), ` +
   `sometimes also a distinct third layer such as a jacket or blazer. Identify every ` +
   `separately-catalogable main garment visible (tops, knitwear, bottoms, outerwear, ` +
   `suiting, footwear) and catalogue each one individually and specifically — do not merge ` +
-  `them into a single entry. Skip minor accessories (jewelry, watches, bags) unless one is ` +
-  `clearly the main subject of the photo. If genuinely only one distinct garment is ` +
-  `visible, return an array containing just that one object.\n\n` +
+  `them into a single entry. Skip minor accessories (jewellery, watches, bags) unless one ` +
+  `is clearly the main subject of the photo. If genuinely only one distinct garment is ` +
+  `visible, return an array containing just that one object. ${BRITISH_ENGLISH_NOTE}\n\n` +
   `Return ONLY a JSON array, no prose and no markdown fences — one object per garment, ` +
   `each using this schema:\n${ITEM_SCHEMA}`;
 
@@ -69,8 +76,8 @@ const RETAG_PROMPT = (feedback: string) =>
   `"${feedback}". Catalogue this item fresh, based on what is actually visible in this ` +
   `photo and on the feedback above — don't just repeat old assumptions if the photo or ` +
   `the feedback contradicts them (e.g. if the feedback says it's a t-shirt, not a ` +
-  `sweatshirt, catalogue it as a t-shirt). Return ONLY a single JSON object (not an ` +
-  `array), no prose and no markdown fences, using this schema:\n${ITEM_SCHEMA}`;
+  `sweatshirt, catalogue it as a t-shirt). ${BRITISH_ENGLISH_NOTE} Return ONLY a single ` +
+  `JSON object (not an array), no prose and no markdown fences, using this schema:\n${ITEM_SCHEMA}`;
 
 function parseJsonObjectReply(text: string): TaggedFields {
   const clean = text.replace(/```json|```/g, "").trim();

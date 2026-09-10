@@ -161,16 +161,71 @@ a {
   color: #fff;
 }
 /* Coverage nudge — a category that's short of its build-an-outfit minimum (lib/coverage.ts),
-   e.g. only 1 or 2 bottoms uploaded so far. Hover/focus for the "why" via the chip's title. */
+   e.g. only 1 or 2 bottoms uploaded so far. `.chip-alert` is the tappable hit area (bigger
+   than the dot itself — a native `title` tooltip was too imprecise to hit and too slow to
+   appear, and doesn't exist at all on tap/mobile); `.chip-alert-dot` is just the visual red
+   dot inside it; `.chip-gap-popover` is the "why" that opens on hover or tap. */
 .chip-alert {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -9px;
+  right: -9px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.chip-alert-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: #b3261e;
   border: 2px solid var(--ground);
+}
+.chip-gap-popover {
+  /* Rendered via a portal to document.body, positioned with an inline top/left computed
+     from the trigger's getBoundingClientRect() — `.rail`'s overflow-x: auto otherwise clips
+     an inline-positioned popover invisible (see Storefront.tsx for the full explanation). */
+  position: fixed;
+  z-index: 50;
+  width: 220px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--ink);
+  font-family: var(--font-body), sans-serif;
+  font-size: 12.5px;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+  cursor: default;
+  white-space: normal;
+}
+/* Same message, surfaced a second way: once the owner actually filters down to a
+   short-on-coverage category, it's shown as a banner above that category's grid — more
+   discoverable than a hover/tap affordance on a small dot, since it's just there the moment
+   you land on the page you'd land on anyway. */
+.coverage-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 24px 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--ink);
+  background: var(--card);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.coverage-banner::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #b3261e;
 }
 .search {
   margin-left: auto;

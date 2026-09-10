@@ -399,6 +399,19 @@ Suggested build order:
      Accessories — there's no clear agreed number for "enough footwear" the way there is
      for tops/bottoms. Left unbadged rather than guess. Revisit if it becomes clear what
      those minimums should be.
+   - **Revised: the hover-only tooltip didn't work well in practice.** A native `title`
+     tooltip needed pixel-precise hovering over a 9px dot and was slow to appear — and
+     doesn't exist at all on tap/mobile, this app's primary surface (§1). Replaced with a
+     real popover (bigger tap target, opens instantly on hover, toggles on tap) rendered
+     via a portal to `document.body`. That surfaced a second real bug worth recording: `.rail`
+     has `overflow-x: auto`, which per the CSS spec forces `overflow-y` to clip too, so an
+     inline absolutely-positioned popover was rendering but invisible, cut off by its own
+     scrolling ancestor — same class of bug as the correction modal's containing-block issue
+     (§5 item 6), same fix (escape via portal). Also added a second, more discoverable
+     surface for the same message: once the owner actually clicks a short-on-coverage
+     category's pill, a banner with the same text now shows above that category's grid —
+     the moment they're looking right at how few pieces are there, not something they have
+     to notice a small dot to find.
 9. ✅ **Category taxonomy simplified: 8 categories → 5.** Live —
    `Tops, Bottoms, Outerwear, Footwear, Accessories`. Dropped Knitwear, Suiting, and
    Activewear, none of which survived scrutiny once the app had real data in it:

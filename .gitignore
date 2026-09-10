@@ -5,3 +5,4 @@ the-rail-*.json
 .claude/*
 !.claude/launch.json
 *.pdf
+Outfit photos/

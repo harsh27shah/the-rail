@@ -63,6 +63,63 @@ function parseJsonArrayReply(text: string): TaggedFields[] {
   return parsed;
 }
 
+const RETAG_PROMPT = (feedback: string) =>
+  `This is a corrected product photo of a single wardrobe item. It was just regenerated ` +
+  `because the owner gave this feedback about what was wrong with the previous version: ` +
+  `"${feedback}". Catalogue this item fresh, based on what is actually visible in this ` +
+  `photo and on the feedback above — don't just repeat old assumptions if the photo or ` +
+  `the feedback contradicts them (e.g. if the feedback says it's a t-shirt, not a ` +
+  `sweatshirt, catalogue it as a t-shirt). Return ONLY a single JSON object (not an ` +
+  `array), no prose and no markdown fences, using this schema:\n${ITEM_SCHEMA}`;
+
+function parseJsonObjectReply(text: string): TaggedFields {
+  const clean = text.replace(/```json|```/g, "").trim();
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("The model didn't return a JSON object");
+  return JSON.parse(clean.slice(start, end + 1));
+}
+
+/**
+ * Re-catalogues a single item after its photo has been corrected via user feedback
+ * (src/app/item/[id]/correct-actions.ts). A correction only ever asked Gemini to fix the
+ * *image* — nothing previously re-checked whether the feedback also implied the item's
+ * stored name/category/material/etc. were wrong (e.g. "it's not a sweatshirt, it's a
+ * t-shirt" should change the catalogued name, not just the photo). This re-tags from the
+ * corrected photo plus the feedback text so those fields can catch up too.
+ */
+export async function retagItem(
+  base64: string,
+  mediaType: string,
+  feedback: string
+): Promise<TaggedFields> {
+  const message = await client().messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 1000,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+              data: base64,
+            },
+          },
+          { type: "text", text: RETAG_PROMPT(feedback) },
+        ],
+      },
+    ],
+  });
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+  return parseJsonObjectReply(text);
+}
+
 /** Tags every distinct garment in a photo. `base64` is raw base64 image data (no data:
  * prefix). Always returns at least one entry when successful — falls back to a single
  * best-effort entry if the model can't confidently separate multiple garments. */

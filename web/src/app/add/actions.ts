@@ -5,24 +5,7 @@ import { redirect } from "next/navigation";
 import { tagPhoto, type TaggedFields } from "@/lib/anthropic";
 import { extractGarmentImage } from "@/lib/gemini";
 import { createItem, replaceItemImage } from "@/lib/items";
-import { CATEGORIES, PATTERNS, SEASONS, type Category, type Pattern, type Season } from "@/lib/types";
-
-function asCategory(value: unknown): Category {
-  return typeof value === "string" && (CATEGORIES as readonly string[]).includes(value)
-    ? (value as Category)
-    : "Tops";
-}
-
-function asPattern(value: unknown): Pattern {
-  return typeof value === "string" && (PATTERNS as readonly string[]).includes(value)
-    ? (value as Pattern)
-    : "solid";
-}
-
-function asSeasons(value: unknown): Season[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((s): s is Season => (SEASONS as readonly string[]).includes(s));
-}
+import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 
 export async function addItemAction(formData: FormData) {
   const photo = formData.get("photo");

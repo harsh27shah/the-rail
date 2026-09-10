@@ -329,6 +329,15 @@ Suggested build order:
      itself asks for specificity ("be as specific as you can") and the placeholder
      demonstrates the level of detail that works, rather than pre-guessing a fixed set of
      reasons. Chips are gone entirely, not just de-emphasized.
+   - **Fixed: correction feedback wasn't updating catalogued fields, only the photo.**
+     Found in real use — feedback like "it's not a sweatshirt, it's a half-sleeve t-shirt"
+     correctly fixed the *image* but the item's name/category still said "sweatshirt"
+     afterward, because `correctImageAction` only ever called `replaceItemImage`. Now,
+     after the photo is regenerated, `retagItem` (`src/lib/anthropic.ts`) re-catalogues the
+     item from the corrected photo + the feedback text, and the result is merged into the
+     item's stored fields (falling back to the existing value for anything the model
+     leaves blank). Best-effort and non-fatal — if re-tagging fails, the photo fix still
+     stands and only the text lags, same "editing is never optional" fallback as ingestion.
 7. ✅ **Multi-garment detection from one photo.** Live — `tagPhoto` (Claude) no longer
    assumes one garment per photo; it identifies every distinct main garment visible (e.g.
    a top *and* a bottom, sometimes a third outer layer) and returns one entry per garment.

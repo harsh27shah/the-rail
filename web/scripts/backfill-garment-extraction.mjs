@@ -56,13 +56,17 @@ async function extractGarmentImage(base64Image, mimeType, description) {
 }
 
 async function main() {
+  // Only items never processed through this pipeline before (original_image_path still
+  // null) — otherwise a re-run would blow away corrections made since the last backfill,
+  // re-extracting from scratch and losing that work.
   const { data: items, error } = await supabase
     .from("items")
     .select("id, name, color, image_path, original_image_path")
-    .not("image_path", "is", null);
+    .not("image_path", "is", null)
+    .is("original_image_path", null);
   if (error) throw new Error(error.message);
 
-  console.log(`Found ${items.length} item(s) with a photo.\n`);
+  console.log(`Found ${items.length} item(s) needing a first extraction.\n`);
 
   let ok = 0;
   let failed = 0;

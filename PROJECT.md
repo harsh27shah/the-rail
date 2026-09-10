@@ -309,7 +309,17 @@ Suggested build order:
    already re-fetch fresh on every request. A one-off backfill script
    (`scripts/backfill-garment-extraction.mjs`) re-processes existing items; re-runnable if
    the extraction prompt improves later.
-6. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+6. ✅ **Image correction ("Not quite right?").** Live — on an item's detail page, a button
+   opens quick-select reasons (wrong color, too shiny/should be matte, wrong pattern,
+   doesn't look like mine) plus an optional free-text field, and regenerates the photo
+   against the true original with that feedback. Built after directly testing (not
+   guessing) that vague feedback like "something's off" barely changes the result, while
+   specific feedback like "too shiny, should be matte" measurably does — hence quick-select
+   *reasons* mapped to specific prompts, rather than a blank "what's wrong?" text box.
+   Required adding `original_image_path` (§3 data model) so corrections have true ground
+   truth to check against, not just whatever the last (possibly-already-wrong) generated
+   attempt was.
+7. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
@@ -336,5 +346,12 @@ whole timeline — confirmed P2, see §2.
 - **Extraction runs async, not blocking the upload.** Chosen over making the user wait
   through both AI calls (tagging + image generation, ~10-20s combined) — the item appears
   with its original photo immediately and upgrades to the clean shot a few seconds later.
-  The original photo's file is left in storage (unreferenced, not deleted) in case the
-  extraction needs redoing.
+- **`original_image_path` is tracked explicitly and never overwritten**, separate from
+  `image_path` (whatever should currently display). Needed once corrections existed —
+  without a true "ground truth" reference, a second correction would be checked against the
+  first (possibly already wrong) generated image instead of reality, and errors would
+  compound. Existing items get this backfilled the first time the backfill script runs.
+- **Corrections run synchronously, unlike the initial extraction.** The owner is actively
+  watching and waiting for this one (they just clicked "regenerate"), so a ~5-15s wait with
+  a visible pending state is the right call here — the opposite tradeoff from the upload
+  flow, deliberately.

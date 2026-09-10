@@ -23,6 +23,18 @@ export interface ExtractedImage {
   mimeType: string;
 }
 
+function firstImagePart(
+  response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>
+): ExtractedImage | null {
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      return { data: part.inlineData.data, mimeType: part.inlineData.mimeType ?? "image/png" };
+    }
+  }
+  return null;
+}
+
 /**
  * `base64Image` is raw base64 (no data: prefix). `description` should be a short, specific
  * description of the garment to isolate (e.g. "cream suede overshirt jacket") — the more
@@ -55,11 +67,44 @@ export async function extractGarmentImage(
     },
   });
 
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
-    if (part.inlineData?.data) {
-      return { data: part.inlineData.data, mimeType: part.inlineData.mimeType ?? "image/png" };
-    }
-  }
-  return null;
+  return firstImagePart(response);
+}
+
+/**
+ * Regenerates a garment photo using feedback about what's wrong with the current attempt —
+ * e.g. "too shiny, should be matte" or "wrong color". Grounds the correction against the
+ * true original photo (not just the possibly-already-wrong generated one), so repeated
+ * corrections don't drift further from reality each time. Verified empirically (not just in
+ * theory) that specific feedback measurably changes the result while vague feedback
+ * ("something's off") mostly doesn't — see PROJECT.md §5.
+ */
+export async function correctGarmentImage(
+  original: { base64: string; mimeType: string },
+  current: { base64: string; mimeType: string },
+  feedback: string,
+  description: string
+): Promise<ExtractedImage | null> {
+  const ai = client();
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: [
+      {
+        text:
+          `Image 1 is the original source photo of a garment (the ${description}; may ` +
+          `include a person wearing it). Image 2 is a generated attempt at an isolated ` +
+          `product photo of that garment, but the owner says something is wrong with it: ` +
+          `"${feedback}". Look at image 1 again to check the true appearance, and produce ` +
+          `a corrected isolated product photo (same style: flat lay / ghost-mannequin, ` +
+          `plain neutral studio background, no person) that fixes the described problem ` +
+          `while staying faithful to image 1.`,
+      },
+      { inlineData: { data: original.base64, mimeType: original.mimeType } },
+      { inlineData: { data: current.base64, mimeType: current.mimeType } },
+    ],
+    config: {
+      responseModalities: [Modality.IMAGE],
+    },
+  });
+
+  return firstImagePart(response);
 }

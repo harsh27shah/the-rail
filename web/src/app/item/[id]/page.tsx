@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItem, getItems } from "@/lib/items";
 import { pairingsFor } from "@/lib/pairings";
+import { ImageCorrection } from "@/components/ImageCorrection";
 
 export default async function ItemDetailPage({
   params,
@@ -59,6 +60,7 @@ export default async function ItemDetailPage({
             <Link href={`/item/${item.id}/edit`} className="btn ghost">
               Edit details
             </Link>
+            <ImageCorrection itemId={item.id} />
           </div>
         </div>
       </div>

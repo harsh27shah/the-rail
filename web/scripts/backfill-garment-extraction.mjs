@@ -58,7 +58,7 @@ async function extractGarmentImage(base64Image, mimeType, description) {
 async function main() {
   const { data: items, error } = await supabase
     .from("items")
-    .select("id, name, color, image_path")
+    .select("id, name, color, image_path, original_image_path")
     .not("image_path", "is", null);
   if (error) throw new Error(error.message);
 
@@ -69,9 +69,14 @@ async function main() {
   for (const item of items) {
     const label = `${item.name || "item"} (${item.id})`;
     try {
+      // The item's *current* image_path is only the true original the first time this
+      // runs — a second run (e.g. after improving the prompt) would otherwise overwrite
+      // original_image_path with an already-generated photo. Only set it once.
+      const sourcePath = item.original_image_path || item.image_path;
+
       const { data: fileBlob, error: dlError } = await supabase.storage
         .from(BUCKET)
-        .download(item.image_path);
+        .download(sourcePath);
       if (dlError) throw new Error(dlError.message);
 
       const arrayBuffer = await fileBlob.arrayBuffer();
@@ -96,7 +101,7 @@ async function main() {
 
       const { error: updateError } = await supabase
         .from("items")
-        .update({ image_path: newPath })
+        .update({ image_path: newPath, original_image_path: sourcePath })
         .eq("id", item.id);
       if (updateError) throw new Error(updateError.message);
 

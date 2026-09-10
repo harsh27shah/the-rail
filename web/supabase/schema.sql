@@ -19,10 +19,18 @@ create table if not exists items (
   formality smallint not null default 3,
   seasons text[] not null default '{}',
   notes text not null default '',
-  image_path text,          -- path inside the `wardrobe-images` storage bucket, if any
+  image_path text,          -- path inside the `wardrobe-images` storage bucket, if any —
+                             -- this is whatever should currently be *displayed* (the
+                             -- original upload, or a cleaned-up/corrected version of it)
+  original_image_path text, -- the true source photo, set once at upload and never
+                             -- overwritten — corrections are grounded against this, not
+                             -- against a possibly-already-wrong generated image
   source text,               -- originating product URL, if added via a link
   added timestamptz not null default now()
 );
+
+-- Existing tables from before this column existed:
+alter table items add column if not exists original_image_path text;
 
 create index if not exists items_category_idx on items (category);
 create index if not exists items_added_idx on items (added desc);

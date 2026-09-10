@@ -511,11 +511,31 @@ textarea {
 .detail-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .detail-actions .btn {
   flex: none;
   padding-left: 20px;
   padding-right: 20px;
+}
+
+.correction-panel {
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 16px;
+  margin-top: 4px;
+  max-width: 420px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.correction-panel input[type="text"] {
+  margin-bottom: 4px;
+}
+.correction-panel .actions {
+  margin-top: 14px;
 }
 
 .pairing-section {

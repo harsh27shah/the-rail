@@ -17,6 +17,7 @@ type Row = {
   seasons: string[];
   notes: string;
   image_path: string | null;
+  original_image_path: string | null;
   source: string | null;
   added: string;
 };
@@ -109,6 +110,9 @@ export async function createItem(input: ItemInput, photo?: File | null): Promise
       seasons: input.seasons,
       notes: input.notes,
       image_path: imagePath,
+      // Set once, here, and never touched again — the ground truth later corrections
+      // and re-extractions get checked against, even after image_path is replaced.
+      original_image_path: imagePath,
       source: input.source ?? null,
     })
     .select("id")
@@ -163,6 +167,44 @@ export async function replaceItemImage(
 
   const { error } = await admin.from("items").update({ image_path: imagePath }).eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+export interface ItemImagePaths {
+  currentPath: string | null;
+  originalPath: string | null;
+}
+
+/** Fetches the two storage paths a correction needs: what's currently shown, and the true
+ * source photo it should be checked against. */
+export async function getItemImagePaths(id: string): Promise<ItemImagePaths | null> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+
+  const { data, error } = await admin
+    .from("items")
+    .select("image_path, original_image_path")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return { currentPath: data.image_path, originalPath: data.original_image_path };
+}
+
+export interface DownloadedImage {
+  base64: string;
+  mimeType: string;
+}
+
+/** Downloads a stored image's bytes, for feeding back into Gemini (extraction/correction
+ * both need to read an image out of storage, not just write one). */
+export async function downloadImage(path: string): Promise<DownloadedImage> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const { data, error } = await admin.storage.from(BUCKET).download(path);
+  if (error) throw new Error(error.message);
+  const buffer = Buffer.from(await data.arrayBuffer());
+  return { base64: buffer.toString("base64"), mimeType: data.type || "image/jpeg" };
 }
 
 /** Bulk delete — P0 in the PRD, so bad ingestions can be cleared quickly. */

@@ -16,7 +16,7 @@ import { CATEGORIES } from "./types";
 const ITEM_SCHEMA = `{"name":"short descriptive name, max 5 words",
  "category":"one of: ${CATEGORIES.join(", ")}",
  "color":"primary colour in plain words",
- "palette":["#hex","#hex"],
+ "palette":["#hex", "...only if genuinely another distinct colour is visible"],
  "pattern":"solid|striped|checked|printed|textured",
  "material":"best guess",
  "formality":1-5 where 1 is lounge and 5 is formal,
@@ -30,6 +30,18 @@ const BRITISH_ENGLISH_NOTE =
   `Write every text value in British English spelling (e.g. "grey" not "gray", "colour" ` +
   `not "color"), not American.`;
 
+// The palette swatches render directly in the UI (the small colour chips under each item's
+// hover card) — a solid-coloured garment that gets tagged with two near-identical hexes
+// shows as two visibly different swatches, which reads as wrong even though it's subtle.
+// Worth spelling out explicitly since the schema's own array shape otherwise nudges the
+// model toward always filling two slots.
+const PALETTE_NOTE =
+  `For "palette": list only colours that are genuinely, visibly distinct on the garment. A ` +
+  `plain solid-coloured garment should have exactly ONE hex code — do not add a second, ` +
+  `slightly different shade of the same colour just to fill the array. Only include a ` +
+  `second or third hex when there's a real, clearly separate colour on the garment (e.g. ` +
+  `contrast trim, a colour-blocked panel, stripes, or a print).`;
+
 const PROMPT =
   `This photo may show a person wearing multiple distinct garments that should each become ` +
   `a separate wardrobe entry — most commonly a top and a bottom (e.g. a shirt and jeans), ` +
@@ -38,7 +50,8 @@ const PROMPT =
   `suiting, footwear) and catalogue each one individually and specifically — do not merge ` +
   `them into a single entry. Skip minor accessories (jewellery, watches, bags) unless one ` +
   `is clearly the main subject of the photo. If genuinely only one distinct garment is ` +
-  `visible, return an array containing just that one object. ${BRITISH_ENGLISH_NOTE}\n\n` +
+  `visible, return an array containing just that one object. ${BRITISH_ENGLISH_NOTE} ` +
+  `${PALETTE_NOTE}\n\n` +
   `Return ONLY a JSON array, no prose and no markdown fences — one object per garment, ` +
   `each using this schema:\n${ITEM_SCHEMA}`;
 
@@ -76,8 +89,9 @@ const RETAG_PROMPT = (feedback: string) =>
   `"${feedback}". Catalogue this item fresh, based on what is actually visible in this ` +
   `photo and on the feedback above — don't just repeat old assumptions if the photo or ` +
   `the feedback contradicts them (e.g. if the feedback says it's a t-shirt, not a ` +
-  `sweatshirt, catalogue it as a t-shirt). ${BRITISH_ENGLISH_NOTE} Return ONLY a single ` +
-  `JSON object (not an array), no prose and no markdown fences, using this schema:\n${ITEM_SCHEMA}`;
+  `sweatshirt, catalogue it as a t-shirt). ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} Return ` +
+  `ONLY a single JSON object (not an array), no prose and no markdown fences, using this ` +
+  `schema:\n${ITEM_SCHEMA}`;
 
 function parseJsonObjectReply(text: string): TaggedFields {
   const clean = text.replace(/```json|```/g, "").trim();

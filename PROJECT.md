@@ -360,6 +360,17 @@ Suggested build order:
      Real duplicate detection would need visual similarity matching against every existing
      item, a substantially harder, separate problem. Revisit if duplicate items become a
      real nuisance in practice.
+   - **Fixed: `palette` was returning two near-identical shades for solid-coloured
+     garments.** Found in real use — the hover overlay's colour swatches (§3) showed two
+     visibly different chips for garments that are really just one colour (e.g. plain olive
+     tee, plain brown trousers). Root cause: `ITEM_SCHEMA` in `src/lib/anthropic.ts` showed
+     `"palette":["#hex","#hex"]` as the example shape, which nudged the model into always
+     filling both slots. Fixed the prompt to explicitly require exactly one hex for a solid
+     garment, and only add a second/third when there's a genuinely distinct colour (contrast
+     trim, colour-blocking, stripes, a print). Ran a one-off backfill
+     (`scripts/backfill-palette.mjs`) to re-derive `palette` for every existing item under
+     the corrected prompt — verified a couple by hand afterward (a denim jacket's second hex
+     is its real brass rivets/buttons, not an invented shade of blue).
 8. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 

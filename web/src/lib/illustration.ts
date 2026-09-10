@@ -61,28 +61,14 @@ export function garmentIllustration(
         <rect x="172" y="256" width="56" height="64" rx="4" fill="${CARDBG}" stroke="${INK}" stroke-width="4"/>
         ${[258, 278, 298, 318].map((x) => `<circle cx="${x}" cy="288" r="3" fill="${INK}" opacity="0.5"/>`).join("")}`;
     }
-    if (category === "Outerwear" || category === "Suiting") {
-      const long = category === "Outerwear";
-      const outer = long
-        ? [[270, 165], [235, 145], [165, 145], [130, 165], [75, 195], [95, 285], [135, 240], [140, 460], [260, 460], [265, 240], [305, 285], [325, 195]]
-        : [[265, 160], [230, 145], [170, 145], [135, 160], [85, 185], [105, 270], [145, 230], [148, 420], [252, 420], [255, 230], [295, 270], [315, 185]];
-      const cutout = long ? [[200, 150], [170, 260], [230, 260]] : [[200, 150], [175, 235], [225, 235]];
+    if (category === "Outerwear") {
+      const outer = [[270, 165], [235, 145], [165, 145], [130, 165], [75, 195], [95, 285], [135, 240], [140, 460], [260, 460], [265, 240], [305, 285], [325, 195]];
+      const cutout = [[200, 150], [170, 260], [230, 260]];
       const d = "M" + outer.map((p) => p.join(",")).join(" L") + " Z M" + cutout.map((p) => p.join(",")).join(" L") + " Z";
       return `
         <clipPath id="${clipId}"><path d="${d}" fill-rule="evenodd"/></clipPath>
         <path d="${d}" fill-rule="evenodd" fill="${c1}" stroke="${INK}" stroke-width="2"/>
-        ${deco()}
-        ${category === "Suiting" ? `<circle cx="200" cy="300" r="4" fill="${INK}"/>` : ""}`;
-    }
-    if (category === "Knitwear") {
-      const pts = [[265, 160], [230, 145], [170, 145], [135, 160], [80, 190], [100, 280], [140, 235], [145, 440], [255, 440], [260, 235], [300, 280], [320, 190]];
-      return `
-        <clipPath id="${clipId}"><polygon points="${poly(pts)}"/></clipPath>
-        <polygon points="${poly(pts)}" fill="${c1}" stroke="${INK}" stroke-width="2"/>
-        ${deco()}
-        <line x1="145" y1="430" x2="255" y2="430" stroke="${INK}" stroke-width="2" opacity="0.35"/>
-        <line x1="105" y1="272" x2="140" y2="255" stroke="${INK}" stroke-width="2" opacity="0.35"/>
-        <line x1="295" y1="272" x2="260" y2="255" stroke="${INK}" stroke-width="2" opacity="0.35"/>`;
+        ${deco()}`;
     }
     const pts = [[260, 155], [225, 140], [200, 172], [175, 140], [140, 155], [85, 180], [105, 265], [145, 225], [150, 430], [250, 430], [255, 225], [295, 265], [315, 180]];
     return `

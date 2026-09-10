@@ -140,9 +140,9 @@ UI chrome. Keep it.
 ┌──────────────────────────────────────────────────┐
 │ THE RAIL.              [Export][Import][+ Add]   │  sticky-feel top bar
 ├──────────────────────────────────────────────────┤
-│ 48 PIECES · 7/8 CATEGORIES · 34% NON-NEUTRAL ▪▪▪ │  mono data strip
+│ 48 PIECES · 4/5 CATEGORIES · 34% NON-NEUTRAL ▪▪▪ │  mono data strip
 ├──────────────────────────────────────────────────┤
-│ [All][Tops][Knitwear][Bottoms][Outerwear] [srch] │  filter rail w/ counts
+│ [All][Tops][Bottoms][Outerwear][Footwear] [srch] │  filter rail w/ counts
 ├──────────────────────────────────────────────────┤
 │  ┌─────┐   ┌─────┐   ┌─────┐   ┌─────┐           │
 │  │ 3:4 │   │ 3:4 │   │ 3:4 │   │ 3:4 │           │  garment cards
@@ -253,6 +253,9 @@ data-model reference for the real build below.
 
 Categories (fixed list, order matters for the filter rail):
 `Tops, Knitwear, Bottoms, Outerwear, Suiting, Footwear, Activewear, Accessories`
+*(This is the prototype's original 8-category list — kept as historical record. The real
+build has since simplified this to 5 categories; see §5 decision log, "category taxonomy
+simplified.")*
 
 ### AI calls made by the prototype (reference for the real build's server-side calls)
 
@@ -392,12 +395,37 @@ Suggested build order:
    still shows its pill (normally a category with 0 items doesn't appear in the filter rail
    at all) so a completely missing essential still nudges. Purely a nudge, not a gate —
    filtering/browsing/uploading all work identically regardless.
-   - **Known gap, deliberately not addressed here:** no minimum defined yet for Knitwear,
-     Suiting, Footwear, Activewear, or Accessories — there's no clear agreed number for
-     "enough footwear" the way there is for tops/bottoms. Left unbadged rather than guess.
-     Revisit if it becomes clear what those minimums should be.
-9. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
-   owner's own wardrobe — see decision log below.
+   - **Known gap, deliberately not addressed here:** no minimum defined yet for Footwear or
+     Accessories — there's no clear agreed number for "enough footwear" the way there is
+     for tops/bottoms. Left unbadged rather than guess. Revisit if it becomes clear what
+     those minimums should be.
+9. ✅ **Category taxonomy simplified: 8 categories → 5.** Live —
+   `Tops, Bottoms, Outerwear, Footwear, Accessories`. Dropped Knitwear, Suiting, and
+   Activewear, none of which survived scrutiny once the app had real data in it:
+   - **Knitwear** isn't a layering role, it's a fabric construction — a jumper can
+     function as either a top (worn alone) or an outer layer (a heavy cardigan/overshirt
+     worn over another top), and the old category couldn't express that. Confirmed as a
+     real problem in the owner's own data: a quarter-zip sweatshirt (functionally a top)
+     was tagged Outerwear, while a heavier plaid wool overshirt (functionally outerwear)
+     was tagged Knitwear — the boundary was already being applied inconsistently. Fixed by
+     dropping the category and having the tagging prompt (`CATEGORY_NOTE` in
+     `src/lib/anthropic.ts`) decide Tops vs. Outerwear per item by how it's actually worn.
+   - **Suiting** doesn't fit this app's positioning — casual/smart-casual, not black-tie or
+     office suits (see §1 persona). A blazer/suit jacket now catalogues as Outerwear, suit
+     trousers as Bottoms; `formality` (already a 1–5 field) carries "how dressy," not a
+     dedicated category.
+   - **Activewear** isn't the target use case — this isn't a gym-log app. Athleisure that's
+     genuinely worn as everyday clothing (joggers, leggings) now catalogues as Bottoms like
+     anything else. Note: this doesn't make the app *reject* pure gym gear (a technical
+     running tee still gets catalogued, just as a Top) — actively excluding gym-only items
+     at ingestion would be a separate, bigger feature, not attempted here.
+   - Ran a one-off backfill (`scripts/backfill-category.mjs`, same hand-synced-prompt
+     pattern as the palette backfill) to re-derive `category` for all existing items under
+     the new rules. Only 2 of 10 items actually changed — the Cream Quarter-Zip Sweatshirt
+     (Outerwear → Tops) and the Multicoloured Plaid Wool Overshirt (Knitwear → Outerwear) —
+     confirming the model applies the new layering-role rule the same way for both.
+10. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+    owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

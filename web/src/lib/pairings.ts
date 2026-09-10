@@ -15,13 +15,10 @@ type Slot = "top" | "bottom" | "layer" | "foot" | "acc";
 function slotOf(category: Item["category"]): Slot {
   switch (category) {
     case "Tops":
-    case "Knitwear":
-    case "Activewear":
       return "top";
     case "Bottoms":
       return "bottom";
     case "Outerwear":
-    case "Suiting":
       return "layer";
     case "Footwear":
       return "foot";

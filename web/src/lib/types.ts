@@ -1,13 +1,10 @@
-export const CATEGORIES = [
-  "Tops",
-  "Knitwear",
-  "Bottoms",
-  "Outerwear",
-  "Suiting",
-  "Footwear",
-  "Activewear",
-  "Accessories",
-] as const;
+// Simplified from an original 8 categories (see PROJECT.md §5 decision log) — Knitwear,
+// Suiting, and Activewear were dropped as top-level categories. Knitwear wasn't a real
+// layering role, just a fabric construction (a jumper can be either a top or an outer
+// layer); Suiting doesn't fit this app's casual/smart-casual positioning; Activewear isn't
+// the target use case. A blazer/jumper/gym tee still gets catalogued — it's just classified
+// by what it actually is (Tops/Bottoms/Outerwear), not given its own bucket.
+export const CATEGORIES = ["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 

@@ -139,6 +139,32 @@ export async function updateItem(id: string, input: ItemInput): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Uploads a new image for an already-existing item and points it at that image, leaving
+ * the original photo's file untouched in storage (just no longer referenced). Used for the
+ * background garment-extraction step after upload, and for the one-off backfill script —
+ * see PROJECT.md §5.
+ */
+export async function replaceItemImage(
+  id: string,
+  base64Data: string,
+  mimeType: string
+): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const ext = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const imagePath = `${crypto.randomUUID()}.${ext}`;
+  const buffer = Buffer.from(base64Data, "base64");
+  const { error: uploadError } = await admin.storage
+    .from(BUCKET)
+    .upload(imagePath, buffer, { contentType: mimeType });
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { error } = await admin.from("items").update({ image_path: imagePath }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 /** Bulk delete — P0 in the PRD, so bad ingestions can be cleared quickly. */
 export async function deleteItems(ids: string[]): Promise<void> {
   const admin = getSupabaseAdmin();

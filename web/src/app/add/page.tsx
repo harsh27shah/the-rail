@@ -1,6 +1,11 @@
 import { addItemAction } from "./actions";
 import { SubmitButton } from "@/components/SubmitButton";
 
+// The garment-extraction step (src/lib/gemini.ts) runs in the background via next/server's
+// after() and can take up to ~15s. Give the function enough room to finish, or Vercel will
+// kill it partway through and the item is left with its original (uncropped) photo.
+export const maxDuration = 60;
+
 export default function AddPage() {
   return (
     <div className="form-page">

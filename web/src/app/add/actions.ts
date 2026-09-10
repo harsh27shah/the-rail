@@ -1,8 +1,10 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { tagPhoto } from "@/lib/anthropic";
-import { createItem } from "@/lib/items";
+import { extractGarmentImage } from "@/lib/gemini";
+import { createItem, replaceItemImage } from "@/lib/items";
 import { CATEGORIES, PATTERNS, SEASONS, type Category, type Pattern, type Season } from "@/lib/types";
 
 function asCategory(value: unknown): Category {
@@ -56,6 +58,20 @@ export async function addItemAction(formData: FormData) {
     },
     photo
   );
+
+  // Show the item right away with the original photo; clean it up in the background so
+  // the upload doesn't sit on a spinner for the ~5-15s image generation can take. Next
+  // visit to the storefront/detail page just picks up the new image once it's ready,
+  // since both are already fetched fresh on every request (see page.tsx `force-dynamic`).
+  const description = [tagged?.color, tagged?.name].filter(Boolean).join(" ") || "garment";
+  after(async () => {
+    try {
+      const extracted = await extractGarmentImage(base64, photo.type || "image/jpeg", description);
+      if (extracted) await replaceItemImage(id, extracted.data, extracted.mimeType);
+    } catch (e) {
+      console.error("Garment extraction failed for item", id, e);
+    }
+  });
 
   redirect(`/item/${id}`);
 }

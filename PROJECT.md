@@ -300,11 +300,15 @@ Suggested build order:
 4. ✅ **Per-item styling suggestions (P0).** Live — real rule-based computation
    (`src/lib/pairings.ts`) replacing the prototype's hand-authored mock data. Whether this
    becomes AI-computed later is still open.
-5. ⬜ **Garment extraction from photos.** Not yet built, and important for the MVP, not a
-   someday-maybe — the current add flow stores whatever photo is uploaded as-is, so a photo
-   of the owner wearing an outfit shows the whole photo on the card rather than an isolated
-   garment shot. This is the "bulk extraction from existing photos" ingestion path called
-   out in the original resequencing reasoning above (§2 item 1) and is next up.
+5. ✅ **Garment extraction from photos.** Live — `src/lib/gemini.ts` sends the uploaded photo
+   to Gemini's image model, asking it to remove any person/background and return an
+   isolated product-style shot of just the garment. Runs via `next/server`'s `after()` in
+   the background so "Add a piece" stays fast (~1-3s, same as before) — the original photo
+   shows immediately, and the storefront/detail page picks up the cleaned image on its next
+   fetch once ready (a few more seconds), no polling or realtime needed since both pages
+   already re-fetch fresh on every request. A one-off backfill script
+   (`scripts/backfill-garment-extraction.mjs`) re-processes existing items; re-runnable if
+   the extraction prompt improves later.
 6. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 
@@ -324,6 +328,13 @@ whole timeline — confirmed P2, see §2.
   per view. Revisit if the suggestions aren't good enough once there's a real wardrobe to
   test against.
 - **Images are stored as uploaded, full resolution** (via Supabase Storage) — no more of
-  the prototype's lossy 640px compression. Garment cropping (item 5 above) still needs to
-  happen before storage/tagging to get clean per-item photos; right now the whole uploaded
-  photo is stored and tagged as one item.
+  the prototype's lossy 640px compression.
+- **Garment extraction uses a second AI provider (Google Gemini), not Anthropic.** Claude
+  can tag/describe a photo but can't edit or generate images — a genuinely different
+  capability, hence a second server-side key (`GEMINI_API_KEY`). Owner-billed, same as
+  Anthropic, until real accounts exist.
+- **Extraction runs async, not blocking the upload.** Chosen over making the user wait
+  through both AI calls (tagging + image generation, ~10-20s combined) — the item appears
+  with its original photo immediately and upgrades to the clean shot a few seconds later.
+  The original photo's file is left in storage (unreferenced, not deleted) in case the
+  extraction needs redoing.

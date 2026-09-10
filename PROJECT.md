@@ -381,7 +381,22 @@ Suggested build order:
      with the live prompt, since it can't import the `.ts` file — see its header) to
      re-derive `palette` for every existing item under each version of the prompt —
      verified several by hand against their real photos both times.
-8. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+8. ✅ **Wardrobe coverage nudge.** Live — `src/lib/coverage.ts` defines a minimum item count
+   for the categories every outfit structurally needs (Tops: 5, Bottoms: 5) plus a softer
+   one for a contextual category (Outerwear: 2). A category under its minimum gets a small
+   red indicator on its filter pill (`src/components/Storefront.tsx`), with the "why" on
+   hover — e.g. "Add 4 more bottoms — every outfit needs one, and five gives enough real
+   rotation." Prompted by real use: the owner's own ingestion so far skewed heavily toward
+   outerwear (the visible outer layer in a mirror selfie) and under-covered tops/bottoms,
+   which are what an outfit actually needs. A category with a defined minimum but zero items
+   still shows its pill (normally a category with 0 items doesn't appear in the filter rail
+   at all) so a completely missing essential still nudges. Purely a nudge, not a gate —
+   filtering/browsing/uploading all work identically regardless.
+   - **Known gap, deliberately not addressed here:** no minimum defined yet for Knitwear,
+     Suiting, Footwear, Activewear, or Accessories — there's no clear agreed number for
+     "enough footwear" the way there is for tops/bottoms. Left unbadged rather than guess.
+     Revisit if it becomes clear what those minimums should be.
+9. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

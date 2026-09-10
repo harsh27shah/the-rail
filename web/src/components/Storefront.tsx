@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CATEGORIES, type Item } from "@/lib/types";
+import { CATEGORIES, type Category, type Item } from "@/lib/types";
 import { pairingsFor } from "@/lib/pairings";
+import { coverageGap } from "@/lib/coverage";
 import { ItemCard } from "./ItemCard";
 import { bulkDeleteAction } from "@/app/actions";
 
@@ -55,7 +56,10 @@ export function Storefront({ items }: { items: Item[] }) {
     return c;
   }, [items]);
 
-  const presentCategories = CATEGORIES.filter((c) => counts[c]);
+  // A category with a defined coverage minimum (see lib/coverage.ts) surfaces in the filter
+  // rail even at zero items, so a genuinely missing essential (e.g. no bottoms at all) still
+  // gets its nudge — not just categories the owner happens to have already started.
+  const presentCategories = CATEGORIES.filter((c) => counts[c] || coverageGap(c, 0));
 
   const visible = items.filter((it) => {
     if (filter !== "All" && it.category !== filter) return false;
@@ -117,16 +121,21 @@ export function Storefront({ items }: { items: Item[] }) {
       </div>
 
       <div className="rail">
-        {["All", ...presentCategories].map((c) => (
-          <button
-            key={c}
-            className={`chip${filter === c ? " active" : ""}`}
-            onClick={() => setFilter(c)}
-          >
-            {c}
-            {c !== "All" ? ` · ${counts[c]}` : ""}
-          </button>
-        ))}
+        {["All", ...presentCategories].map((c) => {
+          const gap = c !== "All" ? coverageGap(c as Category, counts[c] ?? 0) : null;
+          return (
+            <button
+              key={c}
+              className={`chip${filter === c ? " active" : ""}`}
+              onClick={() => setFilter(c)}
+              title={gap?.message}
+            >
+              {gap && <span className="chip-alert" aria-hidden="true" />}
+              {c}
+              {c !== "All" ? ` · ${counts[c] ?? 0}` : ""}
+            </button>
+          );
+        })}
         <input
           className="search"
           type="text"

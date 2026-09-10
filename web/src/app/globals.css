@@ -138,6 +138,7 @@ a {
   scrollbar-width: thin;
 }
 .chip {
+  position: relative;
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.07em;
@@ -158,6 +159,18 @@ a {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+/* Coverage nudge — a category that's short of its build-an-outfit minimum (lib/coverage.ts),
+   e.g. only 1 or 2 bottoms uploaded so far. Hover/focus for the "why" via the chip's title. */
+.chip-alert {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b3261e;
+  border: 2px solid var(--ground);
 }
 .search {
   margin-left: auto;

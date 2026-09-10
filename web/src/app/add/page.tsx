@@ -11,8 +11,9 @@ export default function AddPage() {
     <div className="form-page">
       <h1>Add a piece</h1>
       <p className="hint">
-        Upload a photo and it gets read and catalogued automatically. You can fix anything
-        it gets wrong afterward.
+        Upload a photo and it gets read and catalogued automatically — if it shows more
+        than one garment (like a top and a pair of jeans), each one is catalogued
+        separately. You can fix anything it gets wrong afterward.
       </p>
       <form action={addItemAction}>
         <label htmlFor="photo">Photo</label>

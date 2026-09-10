@@ -293,9 +293,10 @@ Suggested build order:
 
 1. ✅ **Backend that owns the Anthropic API key + real database/storage (Supabase).**
    Done — single-owner mode, no accounts yet (deliberately deferred, see below).
-2. ✅ **Wardrobe ingestion + storefront view (P0) — one-photo-per-item version.** Live and
-   tested end-to-end: upload a photo → Claude tags it → stored in Supabase → shows on the
-   storefront. Reused the prototype's data model (§4) and visual design (§3).
+2. ✅ **Wardrobe ingestion + storefront view (P0).** Live and tested end-to-end: upload a
+   photo → Claude tags it → stored in Supabase → shows on the storefront. Reused the
+   prototype's data model (§4) and visual design (§3). See item 7 — no longer strictly
+   one-photo-per-item.
 3. ✅ **Bulk delete of bad ingestions (P0).** Live — "Select" mode on the storefront.
 4. ✅ **Per-item styling suggestions (P0).** Live — real rule-based computation
    (`src/lib/pairings.ts`) replacing the prototype's hand-authored mock data. Whether this
@@ -328,7 +329,22 @@ Suggested build order:
      itself asks for specificity ("be as specific as you can") and the placeholder
      demonstrates the level of detail that works, rather than pre-guessing a fixed set of
      reasons. Chips are gone entirely, not just de-emphasized.
-7. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+7. ✅ **Multi-garment detection from one photo.** Live — `tagPhoto` (Claude) no longer
+   assumes one garment per photo; it identifies every distinct main garment visible (e.g.
+   a top *and* a bottom, sometimes a third outer layer) and returns one entry per garment.
+   `add/actions.ts` creates a separate item per detected garment and runs a separate
+   background extraction for each, so a single mirror-selfie photo can produce several
+   clean, correctly-cropped items instead of one. This is the original "bulk extraction
+   from outfit photos" ingestion strategy from §2 item 1, not new scope — just now actually
+   built. Verified directly on a real photo: correctly split into jacket, sweatshirt, and
+   trousers, each extracted as its own distinct, correctly-cropped image.
+   - **Known gap, deliberately not addressed here:** no duplicate detection against the
+     existing wardrobe. If the same real garment appears in two different uploaded photos,
+     it becomes two separate items — same as single-garment uploads already behaved.
+     Real duplicate detection would need visual similarity matching against every existing
+     item, a substantially harder, separate problem. Revisit if duplicate items become a
+     real nuisance in practice.
+8. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

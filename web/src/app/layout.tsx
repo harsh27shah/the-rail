@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Anton, Archivo, Space_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -24,6 +24,20 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "The Rail",
   description: "A personal wardrobe you can browse like a shop you already own.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "The Rail",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1A1A18",
 };
 
 export default function RootLayout({

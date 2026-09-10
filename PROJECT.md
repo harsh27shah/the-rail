@@ -437,7 +437,26 @@ Suggested build order:
      the new rules. Only 2 of 10 items actually changed — the Cream Quarter-Zip Sweatshirt
      (Outerwear → Tops) and the Multicoloured Plaid Wool Overshirt (Knitwear → Outerwear) —
      confirming the model applies the new layering-role rule the same way for both.
-10. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+10. ✅ **Multi-photo upload.** Live — the Add page (`src/app/add/page.tsx` +
+    `src/components/AddPhotosForm.tsx`) now takes a whole selection at once instead of one
+    photo at a time. It uploads them **one request per photo, in sequence**, with a
+    "Reading photo 3 of 8…" progress line, and doesn't abort the run if one photo fails
+    (each failure is listed by filename at the end; everything that succeeded is already
+    hung). Same post-upload navigation rule as the single-photo flow: exactly one new item
+    → its detail page, anything else → the storefront.
+    - **Why one request per photo, not one big multipart post:** a batch of
+      full-resolution phone photos would blow past the Server Action body-size limit — and
+      Vercel's own request-body ceiling — in production, even though it works locally.
+      Per-photo requests keep every request small and every function invocation short
+      (tagging only; extraction still runs in the background via `after()` per item, exactly
+      as before). Client-side downscaling was the other option but was rejected — it would
+      defeat the "store full-resolution originals" decision below. `addItemAction` was
+      renamed to `addPhotoAction` and now returns `{ ok, ids }` instead of calling
+      `redirect()`, so the client can drive the loop and navigate once at the end.
+    - **Known limitation:** no resume. Close the tab mid-run and the photos not yet
+      processed are simply not uploaded (the ones already done are saved). Fine for now;
+      revisit if bulk runs get large enough that this bites.
+11. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

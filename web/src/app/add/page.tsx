@@ -1,27 +1,20 @@
-import { addItemAction } from "./actions";
-import { SubmitButton } from "@/components/SubmitButton";
+import { AddPhotosForm } from "@/components/AddPhotosForm";
 
-// The garment-extraction step (src/lib/gemini.ts) runs in the background via next/server's
-// after() and can take up to ~15s. Give the function enough room to finish, or Vercel will
-// kill it partway through and the item is left with its original (uncropped) photo.
+// Each photo is its own request now (see addPhotoAction), so a function invocation only ever
+// handles one photo's tagging + upload — background extraction still runs via after() and
+// wants headroom. Keep the generous ceiling.
 export const maxDuration = 60;
 
 export default function AddPage() {
   return (
     <div className="form-page">
-      <h1>Add a piece</h1>
+      <h1>Add pieces</h1>
       <p className="hint">
-        Upload a photo and it gets read and catalogued automatically — if it shows more
-        than one garment (like a top and a pair of jeans), each one is catalogued
-        separately. You can fix anything it gets wrong afterward.
+        Pick one photo or several at once — each gets read and catalogued automatically, and
+        a photo showing more than one garment (a top and jeans, say) becomes its own entry
+        per garment. You can fix anything it gets wrong afterward.
       </p>
-      <form action={addItemAction}>
-        <label htmlFor="photo">Photo</label>
-        <input id="photo" name="photo" type="file" accept="image/*" required />
-        <div className="actions">
-          <SubmitButton label="Read & hang on the rail" pendingLabel="Reading the garment…" />
-        </div>
-      </form>
+      <AddPhotosForm />
     </div>
   );
 }

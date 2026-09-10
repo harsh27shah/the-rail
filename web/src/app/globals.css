@@ -495,6 +495,24 @@ textarea {
   flex: 1;
   text-align: center;
 }
+/* Post-upload summary on the Add page when a multi-photo run had partial failures — plain
+   prose (not the uppercase mono .status treatment), since it lists real filenames. */
+.upload-report {
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.upload-report .ok {
+  color: var(--ink);
+}
+.upload-report .bad {
+  margin-top: 6px;
+  color: #b3261e;
+}
+.upload-report ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
 .status {
   font-family: var(--font-mono), monospace;
   font-size: 11px;

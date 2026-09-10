@@ -60,7 +60,7 @@ export default async function ItemDetailPage({
             <Link href={`/item/${item.id}/edit`} className="btn ghost">
               Edit details
             </Link>
-            <ImageCorrection itemId={item.id} />
+            <ImageCorrection itemId={item.id} originalImageUrl={item.originalImageUrl} />
           </div>
         </div>
       </div>

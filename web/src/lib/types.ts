@@ -32,8 +32,12 @@ export interface Item {
   formality: number;
   seasons: Season[];
   notes: string;
-  /** Public URL of the item's photo (Supabase Storage, once wired up). */
+  /** Public URL of the item's photo (Supabase Storage, once wired up). This is whatever
+   * should currently *display* — the original upload, or a cleaned-up/corrected version. */
   imageUrl: string | null;
+  /** Public URL of the true original uploaded photo, never overwritten — shown during
+   * correction so the user has something real to check their own feedback against. */
+  originalImageUrl: string | null;
   /** Originating product URL, if added via a link rather than a photo. */
   source: string | null;
   /** Epoch ms. */

@@ -73,7 +73,7 @@ export function ItemCard({
               >
                 Edit
               </button>
-              <ImageCorrection itemId={item.id} variant="icon" />
+              <ImageCorrection itemId={item.id} originalImageUrl={item.originalImageUrl} variant="icon" />
             </div>
           )}
           <div className="overlay-info">

@@ -6,48 +6,29 @@ import { useRouter } from "next/navigation";
 import { correctImageAction } from "@/app/item/[id]/correct-actions";
 
 /**
- * Quick-select reasons map to specific, concrete feedback text — not just the button's own
- * label — because vague feedback measurably doesn't work (verified directly: "something's
- * off" produced almost no change, while a specific complaint did). These give people who
- * don't know fashion vocabulary a way to point at *something specific* without having to
- * write it themselves. See PROJECT.md §5.
+ * Free-form feedback is the whole interaction — no preset category buttons. Validated
+ * directly (see PROJECT.md §5) that vague feedback ("something's off") barely changes the
+ * result, while specific feedback ("too shiny, should be matte") measurably does. Rather
+ * than guess at a fixed set of reasons, the field itself asks for specificity and the
+ * placeholder shows what that level of detail actually looks like — the user drives it.
  */
-const REASONS: { label: string; feedback: string }[] = [
-  {
-    label: "Wrong color",
-    feedback:
-      "The color is wrong. Look at the original photo again and match the true color more closely.",
-  },
-  {
-    label: "Too shiny — should be matte",
-    feedback:
-      "The material looks too shiny/glossy, like polished leather. It should look more matte, soft, and textured.",
-  },
-  {
-    label: "Wrong pattern",
-    feedback:
-      "The pattern is wrong. Check the original photo again and reproduce its actual pattern (stripes, checks, print, etc.) faithfully.",
-  },
-  {
-    label: "Doesn't look like mine",
-    feedback:
-      "This doesn't resemble the garment in the original photo. Look at the original very carefully and match its true shape, color, and details.",
-  },
-];
+const EXAMPLE_PLACEHOLDER =
+  'e.g. "It\'s a deeper navy blue than this, and the material should look more matte, less shiny."';
 
 export function ImageCorrection({
   itemId,
+  originalImageUrl,
   variant = "text",
 }: {
   itemId: string;
+  originalImageUrl: string | null;
   /** "text" — full "Not quite right?" button, used on the item detail page.
    *  "icon" — small glyph-only trigger, used on the grid card's hover overlay. */
   variant?: "text" | "icon";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,21 +40,18 @@ export function ImageCorrection({
   function closeModal() {
     if (submitting) return;
     setOpen(false);
-    setSelected(null);
-    setDetail("");
+    setFeedback("");
     setError(null);
   }
 
   async function submit() {
-    const reason = REASONS.find((r) => r.label === selected)?.feedback;
-    const feedback = [reason, detail.trim()].filter(Boolean).join(" ");
-    if (!feedback) {
-      setError("Pick a reason or describe what's wrong first");
+    if (!feedback.trim()) {
+      setError("Describe what's wrong first");
       return;
     }
     setSubmitting(true);
     setError(null);
-    const result = await correctImageAction(itemId, feedback);
+    const result = await correctImageAction(itemId, feedback.trim());
     setSubmitting(false);
     if (result.ok) {
       closeModal();
@@ -107,25 +85,26 @@ export function ImageCorrection({
           <div className="modal-veil" onClick={closeModal}>
             <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
               <h3>Not quite right?</h3>
-              <p className="hint">What&rsquo;s off about the photo?</p>
-              <div className="chip-row" style={{ marginBottom: 12 }}>
-                {REASONS.map((r) => (
-                  <button
-                    key={r.label}
-                    type="button"
-                    className={`chip${selected === r.label ? " active" : ""}`}
-                    onClick={() => setSelected(r.label === selected ? null : r.label)}
-                    disabled={submitting}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                placeholder="Add detail (optional)"
-                value={detail}
-                onChange={(e) => setDetail(e.target.value)}
+
+              {originalImageUrl && (
+                <>
+                  <label>Your original photo</label>
+                  <div className="correction-reference">
+                    <img src={originalImageUrl} alt="Your original upload" />
+                  </div>
+                </>
+              )}
+
+              <label htmlFor="correction-feedback">What&rsquo;s off about the photo?</label>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                Be as specific as you can — it makes a real difference to the result.
+              </p>
+              <textarea
+                id="correction-feedback"
+                rows={4}
+                placeholder={EXAMPLE_PLACEHOLDER}
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
                 disabled={submitting}
               />
               {error && <div className="status err">{error}</div>}

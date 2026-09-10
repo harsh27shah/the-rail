@@ -309,16 +309,25 @@ Suggested build order:
    already re-fetch fresh on every request. A one-off backfill script
    (`scripts/backfill-garment-extraction.mjs`) re-processes existing items; re-runnable if
    the extraction prompt improves later.
-6. ✅ **Image correction ("Not quite right?").** Live — on an item's detail page, a button
-   opens quick-select reasons (wrong color, too shiny/should be matte, wrong pattern,
-   doesn't look like mine) plus an optional free-text field, and regenerates the photo
-   against the true original with that feedback. Built after directly testing (not
-   guessing) that vague feedback like "something's off" barely changes the result, while
-   specific feedback like "too shiny, should be matte" measurably does — hence quick-select
-   *reasons* mapped to specific prompts, rather than a blank "what's wrong?" text box.
-   Required adding `original_image_path` (§3 data model) so corrections have true ground
-   truth to check against, not just whatever the last (possibly-already-wrong) generated
-   attempt was.
+6. ✅ **Image correction ("Not quite right?").** Live — a button (a text link on the detail
+   page, a small "↻" icon directly on each grid card so it doesn't require a trip to the
+   detail page first) opens a dialog that regenerates the photo against the true original,
+   using the owner's own free-text description of what's wrong. Required adding
+   `original_image_path` (§3 data model) so corrections have true ground truth to check
+   against, not just whatever the last (possibly-already-wrong) generated attempt was.
+   The dialog also shows that original photo, so the owner has something real to check
+   their own memory against while writing feedback (e.g. confirming the true shade of
+   blue) — the correction call already sent it to Gemini for grounding, but it wasn't
+   visible to the person giving the feedback until now.
+   - **Went through two iterations on the input design.** First version: quick-select
+     "reason" chips (wrong color, too shiny, etc.) plus an optional free-text field — built
+     after directly verifying that vague feedback like "something's off" barely changes
+     the result while specific feedback measurably does, so the chips existed to steer
+     people toward specificity without requiring fashion vocabulary. In practice the preset
+     reasons felt arbitrary. **Second version (current): free-form text only** — the field
+     itself asks for specificity ("be as specific as you can") and the placeholder
+     demonstrates the level of detail that works, rather than pre-guessing a fixed set of
+     reasons. Chips are gone entirely, not just de-emphasized.
 7. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 

@@ -28,6 +28,10 @@ function rowToItem(row: Row): Item {
     row.image_path && admin
       ? admin.storage.from(BUCKET).getPublicUrl(row.image_path).data.publicUrl
       : null;
+  const originalImageUrl =
+    row.original_image_path && admin
+      ? admin.storage.from(BUCKET).getPublicUrl(row.original_image_path).data.publicUrl
+      : null;
   return {
     id: row.id,
     name: row.name,
@@ -40,6 +44,7 @@ function rowToItem(row: Row): Item {
     seasons: (row.seasons ?? []) as Season[],
     notes: row.notes,
     imageUrl,
+    originalImageUrl,
     source: row.source,
     added: new Date(row.added).getTime(),
   };

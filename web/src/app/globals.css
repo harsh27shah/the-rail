@@ -574,8 +574,25 @@ textarea {
 .modal-sheet input[type="text"] {
   margin-bottom: 4px;
 }
+.modal-sheet textarea {
+  resize: vertical;
+}
 .modal-sheet .actions {
   margin-top: 14px;
+}
+.correction-reference {
+  width: 110px;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  background: var(--card);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.correction-reference img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .pairing-section {

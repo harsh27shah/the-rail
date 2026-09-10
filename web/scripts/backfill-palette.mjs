@@ -34,13 +34,22 @@ const BUCKET = "wardrobe-images";
 const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
+// Kept in sync by hand with PALETTE_NOTE in src/lib/anthropic.ts (this script can't import
+// that .ts file directly — see the file header). If you change one, change the other.
 const PALETTE_PROMPT =
-  `Look at this product photo of a single wardrobe garment. Identify only the colours that ` +
-  `are genuinely, visibly distinct on it. A plain solid-coloured garment should get exactly ` +
-  `ONE hex code — do not add a second, slightly different shade of the same colour just to ` +
-  `fill the list. Only include a second or third hex when there's a real, clearly separate ` +
-  `colour on the garment (e.g. contrast trim, a colour-blocked panel, stripes, or a print), ` +
-  `most visually dominant colour first.\n\n` +
+  `Look at this product photo of a single wardrobe garment. List only the colour(s) a ` +
+  `person would actually use to describe this garment at a glance — not a literal survey ` +
+  `of every pixel. Ignore small hardware and trim details entirely, even if they're a ` +
+  `technically different colour: buttons, rivets, zips, zip pulls, snaps, drawstrings, ` +
+  `stitching thread, and small embroidered logos or brand marks never count as a garment ` +
+  `colour. A plain solid-coloured garment should get exactly ONE hex code — do not add a ` +
+  `second, slightly different shade of the same colour just to fill the list. Only include ` +
+  `a second or third hex when there's a real, substantial second colour covering a ` +
+  `meaningful part of the garment (e.g. a contrast collar/panel, colour-blocking, stripes, ` +
+  `or a print) — and even then, list at most the 2-3 most dominant colours, ordered by how ` +
+  `much of the garment they cover; skip minor accent flecks or thin lines in a pattern that ` +
+  `a person wouldn't mention when describing it (e.g. an orange-and-black check with a few ` +
+  `thin yellow lines is "orange, black", not "orange, black, yellow").\n\n` +
   `Return ONLY a JSON array of hex colour strings, no prose, no markdown fences, e.g. ` +
   `["#5b5645"] or ["#1a1a1a","#f2ede2"].`;
 

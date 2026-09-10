@@ -38,8 +38,8 @@ async function extractGarmentImage(base64Image, mimeType, description) {
           `Remove any person, mannequin, hanger, or background clutter from this photo and ` +
           `produce a clean, isolated product photograph of just the ${description}. ` +
           `Style: flat lay or ghost-mannequin look on a plain, light neutral studio ` +
-          `background, centered, well-lit, no shadows of a body — like a minimalist ` +
-          `online clothing retailer's catalogue photo. Keep the garment's true color, ` +
+          `background, centred, well-lit, no shadows of a body — like a minimalist ` +
+          `online clothing retailer's catalogue photo. Keep the garment's true colour, ` +
           `pattern, and shape faithful to the original photo.`,
       },
       { inlineData: { data: base64Image, mimeType } },

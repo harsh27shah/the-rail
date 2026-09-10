@@ -31,16 +31,27 @@ const BRITISH_ENGLISH_NOTE =
   `not "color"), not American.`;
 
 // The palette swatches render directly in the UI (the small colour chips under each item's
-// hover card) — a solid-coloured garment that gets tagged with two near-identical hexes
-// shows as two visibly different swatches, which reads as wrong even though it's subtle.
-// Worth spelling out explicitly since the schema's own array shape otherwise nudges the
-// model toward always filling two slots.
+// hover card, and will eventually drive colour-based sorting/filtering) — they should match
+// how a person would actually describe the garment's colour, not a literal pixel survey.
+// Two failure modes found in real use: (1) a solid-coloured garment tagged with two
+// near-identical hexes, because the schema's own array shape nudges the model toward always
+// filling two slots; (2) small incidental details — a jacket's brass rivets, a jumper's tiny
+// embroidered logo — counted as a genuine second "colour" of the garment, which is technically
+// true but not what anyone means by "what colour is this". Both are addressed below.
 const PALETTE_NOTE =
-  `For "palette": list only colours that are genuinely, visibly distinct on the garment. A ` +
-  `plain solid-coloured garment should have exactly ONE hex code — do not add a second, ` +
-  `slightly different shade of the same colour just to fill the array. Only include a ` +
-  `second or third hex when there's a real, clearly separate colour on the garment (e.g. ` +
-  `contrast trim, a colour-blocked panel, stripes, or a print).`;
+  `For "palette": list only the colour(s) a person would actually use to describe this ` +
+  `garment at a glance — not a literal survey of every pixel. Ignore small hardware and ` +
+  `trim details entirely, even if they're a technically different colour: buttons, rivets, ` +
+  `zips, zip pulls, snaps, drawstrings, stitching thread, and small embroidered logos or ` +
+  `brand marks never count as a garment colour. A plain solid-coloured garment should have ` +
+  `exactly ONE hex code — never add a second, slightly different shade of the same colour ` +
+  `just to fill the array. Only include a second or third hex when there's a real, ` +
+  `substantial second colour covering a meaningful part of the garment (e.g. a contrast ` +
+  `collar/panel, colour-blocking, stripes, or a print) — and even then, list at most the 2-3 ` +
+  `most dominant colours, ordered by how much of the garment they cover; skip minor accent ` +
+  `flecks or thin lines in a pattern that a person wouldn't mention when describing it (e.g. ` +
+  `an orange-and-black check with a few thin yellow lines is "orange, black", not "orange, ` +
+  `black, yellow").`;
 
 const PROMPT =
   `This photo may show a person wearing multiple distinct garments that should each become ` +

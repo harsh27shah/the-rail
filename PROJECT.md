@@ -367,10 +367,20 @@ Suggested build order:
      `"palette":["#hex","#hex"]` as the example shape, which nudged the model into always
      filling both slots. Fixed the prompt to explicitly require exactly one hex for a solid
      garment, and only add a second/third when there's a genuinely distinct colour (contrast
-     trim, colour-blocking, stripes, a print). Ran a one-off backfill
-     (`scripts/backfill-palette.mjs`) to re-derive `palette` for every existing item under
-     the corrected prompt — verified a couple by hand afterward (a denim jacket's second hex
-     is its real brass rivets/buttons, not an invented shade of blue).
+     trim, colour-blocking, stripes, a print).
+   - **Second pass, same fix — palette should match how a person describes a colour, not a
+     pixel survey.** First fix wasn't quite right: a denim jacket's brass rivets/buttons and
+     a jumper's tiny embroidered logo were technically-correct second colours but not what
+     "what colour is this" means. `PALETTE_NOTE` now explicitly excludes hardware/trim/
+     stitching/small logos from ever counting as a garment colour, and for genuinely
+     multi-coloured garments (a busy plaid, a print) caps the list at the 2-3 most dominant
+     colours by coverage — skipping thin accent lines/flecks a person wouldn't mention (an
+     orange-and-black check with a few thin yellow lines is "orange, black", not "orange,
+     black, yellow"). Colour-based sort/filter is a plausible future feature this also sets
+     up for, though not built yet. Ran `scripts/backfill-palette.mjs` (kept in sync by hand
+     with the live prompt, since it can't import the `.ts` file — see its header) to
+     re-derive `palette` for every existing item under each version of the prompt —
+     verified several by hand against their real photos both times.
 8. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
    owner's own wardrobe — see decision log below.
 

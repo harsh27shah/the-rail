@@ -260,8 +260,12 @@ a {
   border-color: rgba(247, 246, 242, 0.4);
 }
 
-.card-edit {
+.card-top-actions {
   align-self: flex-end;
+  display: flex;
+  gap: 6px;
+}
+.card-edit {
   font-family: var(--font-mono), monospace;
   font-size: 9px;
   letter-spacing: 0.07em;
@@ -273,6 +277,22 @@ a {
   cursor: pointer;
 }
 .card-edit:hover {
+  background: var(--ground);
+  color: var(--ink);
+}
+.card-flag {
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 14px;
+  border: 1px solid var(--ground);
+  background: transparent;
+  color: var(--ground);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.card-flag:hover {
   background: var(--ground);
   color: var(--ink);
 }
@@ -519,22 +539,42 @@ textarea {
   padding-right: 20px;
 }
 
-.correction-panel {
-  border: 1px solid var(--line);
-  background: var(--card);
-  padding: 16px;
-  margin-top: 4px;
-  max-width: 420px;
-}
 .chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.correction-panel input[type="text"] {
+
+/* ---------- modal (correction dialog) ---------- */
+.modal-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 24, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 16px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.modal-sheet {
+  background: var(--ground);
+  border: 1px solid var(--ink);
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+}
+.modal-sheet h3 {
+  font-family: var(--font-display), sans-serif;
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0 0 4px;
+}
+.modal-sheet input[type="text"] {
   margin-bottom: 4px;
 }
-.correction-panel .actions {
+.modal-sheet .actions {
   margin-top: 14px;
 }
 

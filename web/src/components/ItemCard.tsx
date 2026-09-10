@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { Item } from "@/lib/types";
+import { ImageCorrection } from "./ImageCorrection";
 
 function seasonCode(s: string) {
   return s.slice(0, 2).toUpperCase();
@@ -61,16 +62,19 @@ export function ItemCard({
         )}
         <div className="overlay">
           {!selectMode && (
-            <button
-              type="button"
-              className="card-edit"
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/item/${item.id}/edit`);
-              }}
-            >
-              Edit
-            </button>
+            <div className="card-top-actions">
+              <button
+                type="button"
+                className="card-edit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/item/${item.id}/edit`);
+                }}
+              >
+                Edit
+              </button>
+              <ImageCorrection itemId={item.id} variant="icon" />
+            </div>
           )}
           <div className="overlay-info">
             <div className="name">{item.name}</div>

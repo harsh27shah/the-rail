@@ -173,11 +173,10 @@ prototype (§4) and worth carrying forward as-is:
 `prefers-reduced-motion` should disable the lift/rotation transitions and leave hover
 content in its revealed state.
 
-**Planned upgrade, not yet built:** the pairing pills are currently text-only (item names).
-The intended end state is small photo thumbnails of the paired items instead of text — but
-this only looks good once garment cropping (§5) exists, so a pill shows just the isolated
-garment rather than a whole photo of a person wearing it. Do this after cropping, not
-before.
+**Built (§5): the pairing pills are photo thumbnails, not text.** Garment extraction (§5)
+made this look right — each pill is a small 32×32 crop of the paired item's own isolated
+photo (`.pair-pill-img`), not its name. Falls back to a text pill for the rare item with no
+photo yet.
 
 ### Copy voice
 
@@ -549,7 +548,13 @@ Suggested build order:
       whether it's one pair of trousers or two. Logged all of this here rather than silently
       "fixed" because it's a real reminder that this feature is a nudge to check, not a
       ground-truth judge of the owner's own wardrobe.
-14. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+14. ✅ **Pairing pills upgraded from text to photo thumbnails.** Live — each pairing
+    suggestion on the hover overlay (`ItemCard.tsx`) is now a small 32×32 crop of that
+    item's own isolated photo (`.pair-pill-img`) instead of its name. This was the §3
+    "planned upgrade" gated on garment extraction actually existing — it does now, so a pill
+    shows just the clean cropped garment rather than a whole photo of someone wearing it.
+    Falls back to the old text pill for the rare item with no photo yet.
+15. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

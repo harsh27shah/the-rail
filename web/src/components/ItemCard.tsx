@@ -44,13 +44,25 @@ export function ItemCard({
     >
       <div className={`frame${item.imageUrl ? "" : " empty"}`}>
         {item.imageUrl && <img src={item.imageUrl} alt="" />}
-        {item.needsReview && !selectMode && (
-          <span
-            className="review-badge"
-            title={item.reviewNote ?? "Some details were inferred from the photo — worth a check"}
-          >
-            Check
-          </span>
+        {!selectMode && (item.needsReview || item.duplicateOfId) && (
+          <div className="card-badges">
+            {item.duplicateOfId && (
+              <span
+                className="review-badge badge-dupe"
+                title={item.duplicateNote ?? "This might be the same piece as something already on the rail"}
+              >
+                Possible dupe
+              </span>
+            )}
+            {item.needsReview && (
+              <span
+                className="review-badge badge-check"
+                title={item.reviewNote ?? "Some details were inferred from the photo — worth a check"}
+              >
+                Check
+              </span>
+            )}
+          </div>
         )}
         {selectMode && (
           <input

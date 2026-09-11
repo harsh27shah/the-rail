@@ -42,6 +42,11 @@ export interface Item {
    * hidden, cropped, folded). `reviewNote` is a short phrase on what was guessed. */
   needsReview: boolean;
   reviewNote: string | null;
+  /** Set on the newer of a suspected-duplicate pair, pointing at the earlier item's id.
+   * Null = not flagged. See PROJECT.md §5. */
+  duplicateOfId: string | null;
+  duplicateNote: string | null;
+  duplicateConfidence: number | null;
   /** Originating product URL, if added via a link rather than a photo. */
   source: string | null;
   /** Epoch ms. */

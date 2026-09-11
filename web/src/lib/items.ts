@@ -21,6 +21,9 @@ type Row = {
   previous_state: PreviousState | null;
   needs_review: boolean | null;
   review_note: string | null;
+  duplicate_of: string | null;
+  duplicate_note: string | null;
+  duplicate_confidence: number | null;
   source: string | null;
   added: string;
 };
@@ -68,6 +71,9 @@ function rowToItem(row: Row): Item {
     canUndo: row.previous_state != null,
     needsReview: row.needs_review ?? false,
     reviewNote: row.review_note,
+    duplicateOfId: row.duplicate_of,
+    duplicateNote: row.duplicate_note,
+    duplicateConfidence: row.duplicate_confidence,
     source: row.source,
     added: new Date(row.added).getTime(),
   };
@@ -354,6 +360,163 @@ export async function downloadImage(path: string): Promise<DownloadedImage> {
   if (error) throw new Error(error.message);
   const buffer = Buffer.from(await data.arrayBuffer());
   return { base64: buffer.toString("base64"), mimeType: data.type || "image/jpeg" };
+}
+
+// --- Duplicate detection (PROJECT.md §5) ---------------------------------------------
+
+const STOP_WORDS = new Set(["a", "an", "the", "and", "with", "for", "in", "on", "of", "to"]);
+
+function significantWords(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+  );
+}
+
+function wordsOverlap(a: Set<string>, b: Set<string>): boolean {
+  for (const w of a) if (b.has(w)) return true;
+  return false;
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  imagePath: string;
+}
+
+/**
+ * Same-category existing items plausible enough to be worth an actual (costly) visual
+ * comparison against a newly-added item — sharing a colour word or a name word. Keeps the
+ * number of vision calls per upload small (a handful, not every same-category item) without
+ * meaningfully hurting recall: two garments that share neither a colour word nor a name word
+ * are unlikely to be the same physical item anyway.
+ */
+export async function findDuplicateCandidates(
+  category: Category,
+  color: string,
+  name: string,
+  excludeId: string,
+  limit = 5
+): Promise<DuplicateCandidate[]> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return [];
+
+  const { data, error } = await admin
+    .from("items")
+    .select("id, name, color, image_path")
+    .eq("category", category)
+    .neq("id", excludeId)
+    .not("image_path", "is", null);
+  if (error) throw new Error(error.message);
+
+  const colorWords = significantWords(color);
+  const nameWords = significantWords(name);
+  const rows = data as { id: string; name: string; color: string; image_path: string | null }[];
+
+  return rows
+    .filter(
+      (row) =>
+        wordsOverlap(colorWords, significantWords(row.color)) ||
+        wordsOverlap(nameWords, significantWords(row.name))
+    )
+    .slice(0, limit)
+    .map((row) => ({ id: row.id, imagePath: row.image_path as string }));
+}
+
+/** Flags `newItemId` as a suspected duplicate of `originalItemId` — set on the newer item,
+ * pointing at the earlier one. */
+export async function flagDuplicate(
+  newItemId: string,
+  originalItemId: string,
+  note: string,
+  confidence: number
+): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  const { error } = await admin
+    .from("items")
+    .update({ duplicate_of: originalItemId, duplicate_note: note, duplicate_confidence: confidence })
+    .eq("id", newItemId);
+  if (error) throw new Error(error.message);
+}
+
+export interface DuplicatePair {
+  flagged: Item;
+  original: Item;
+}
+
+/** Every pending suspected-duplicate pair, most recently flagged first — what the
+ * "Review duplicates" pill opens onto. */
+export async function getDuplicateQueue(): Promise<DuplicatePair[]> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return [];
+
+  const { data: flaggedRows, error } = await admin
+    .from("items")
+    .select("*")
+    .not("duplicate_of", "is", null)
+    .order("added", { ascending: false });
+  if (error) throw new Error(error.message);
+  if (!flaggedRows || flaggedRows.length === 0) return [];
+
+  const originalIds = [
+    ...new Set((flaggedRows as Row[]).map((r) => r.duplicate_of).filter((v): v is string => !!v)),
+  ];
+  const { data: originalRows, error: origError } = await admin
+    .from("items")
+    .select("*")
+    .in("id", originalIds);
+  if (origError) throw new Error(origError.message);
+
+  const originalsById = new Map((originalRows as Row[]).map((r) => [r.id, rowToItem(r)]));
+
+  const pairs: DuplicatePair[] = [];
+  for (const row of flaggedRows as Row[]) {
+    const original = row.duplicate_of ? originalsById.get(row.duplicate_of) : undefined;
+    if (!original) continue; // stale reference (shouldn't happen given the FK) — skip rather than crash
+    pairs.push({ flagged: rowToItem(row), original });
+  }
+  return pairs;
+}
+
+/**
+ * Resolves one suspected-duplicate pair. "dismiss" clears the flag on both without deleting
+ * anything (not actually a duplicate). "remove-flagged"/"remove-original" delete the chosen
+ * item — deleting the original auto-clears the flagged item's `duplicate_of` (the column's
+ * `on delete set null`), leaving `duplicate_note`/`duplicate_confidence` stale but harmless
+ * since the UI only reads them when `duplicate_of` is set.
+ */
+export async function resolveDuplicate(
+  flaggedId: string,
+  action: "dismiss" | "remove-flagged" | "remove-original"
+): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+
+  if (action === "remove-flagged") {
+    await deleteItems([flaggedId]);
+    return;
+  }
+
+  if (action === "remove-original") {
+    const { data, error } = await admin
+      .from("items")
+      .select("duplicate_of")
+      .eq("id", flaggedId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data?.duplicate_of) return;
+    await deleteItems([data.duplicate_of]);
+    return;
+  }
+
+  const { error } = await admin
+    .from("items")
+    .update({ duplicate_of: null, duplicate_note: null, duplicate_confidence: null })
+    .eq("id", flaggedId);
+  if (error) throw new Error(error.message);
 }
 
 /** Bulk delete — P0 in the PRD, so bad ingestions can be cleared quickly. */

@@ -1,10 +1,15 @@
 "use server";
 
 import { after } from "next/server";
-import { tagPhoto, type TaggedFields } from "@/lib/anthropic";
+import { compareGarmentPhotos, tagPhoto, type TaggedFields } from "@/lib/anthropic";
 import { extractGarmentImage } from "@/lib/gemini";
-import { createItem, replaceItemImage } from "@/lib/items";
+import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
+
+// A "same" verdict below this confidence isn't flagged — Claude's own calibration puts
+// genuine matches at 0.75+ and confidently-different pairs at 0.98+ (see PROJECT.md §5's
+// spike notes), so this is a wide safety margin, not a tight threshold.
+const DUPLICATE_CONFIDENCE_THRESHOLD = 0.6;
 
 export type AddPhotoResult = { ok: true; ids: string[] } | { ok: false; error: string };
 
@@ -45,11 +50,15 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
     // photos rather than one item with both garments still in frame. See PROJECT.md §5.
     const ids: string[] = [];
     for (const t of tagged) {
+      const category = asCategory(t.category);
+      const name = t.name || "Untitled piece";
+      const color = t.color || "";
+
       const id = await createItem(
         {
-          name: t.name || "Untitled piece",
-          category: asCategory(t.category),
-          color: t.color || "",
+          name,
+          category,
+          color,
           palette: t.palette || [],
           pattern: asPattern(t.pattern),
           material: t.material || "",
@@ -63,13 +72,37 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
       );
       ids.push(id);
 
-      const description = [t.color, t.name].filter(Boolean).join(" ") || "garment";
+      const description = [color, name].filter(Boolean).join(" ") || "garment";
       after(async () => {
+        // Extraction first — the duplicate check below prefers comparing two clean product
+        // shots over a raw photo against a clean one, matching how it was validated.
+        let extracted: { data: string; mimeType: string } | null = null;
         try {
-          const extracted = await extractGarmentImage(base64, photo.type || "image/jpeg", description);
+          extracted = await extractGarmentImage(base64, photo.type || "image/jpeg", description);
           if (extracted) await replaceItemImage(id, extracted.data, extracted.mimeType);
         } catch (e) {
           console.error("Garment extraction failed for item", id, e);
+        }
+
+        // Duplicate check — best-effort, never blocks or fails the upload. Only compares
+        // against a handful of plausible same-category candidates (see
+        // findDuplicateCandidates), not the whole wardrobe.
+        try {
+          const candidates = await findDuplicateCandidates(category, color, name, id);
+          const newImage = extracted ?? { data: base64, mimeType: photo.type || "image/jpeg" };
+          for (const candidate of candidates) {
+            const candidateImage = await downloadImage(candidate.imagePath);
+            const result = await compareGarmentPhotos(
+              { base64: newImage.data, mimeType: newImage.mimeType },
+              { base64: candidateImage.base64, mimeType: candidateImage.mimeType }
+            );
+            if (result.verdict === "same" && result.confidence >= DUPLICATE_CONFIDENCE_THRESHOLD) {
+              await flagDuplicate(id, candidate.id, result.why, result.confidence);
+              break; // one flagged match is enough to surface for review
+            }
+          }
+        } catch (e) {
+          console.error("Duplicate check failed for item", id, e);
         }
       });
     }

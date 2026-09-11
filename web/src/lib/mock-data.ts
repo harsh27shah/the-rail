@@ -47,6 +47,9 @@ export const MOCK_ITEMS: Item[] = RAW.map(
       canUndo: false,
       needsReview: false,
       reviewNote: null,
+      duplicateOfId: null,
+      duplicateNote: null,
+      duplicateConfidence: null,
       source: null,
       added: Date.now() - i * 3600_000,
     };

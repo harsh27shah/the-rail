@@ -217,3 +217,63 @@ export async function tagPhoto(base64: string, mediaType: string): Promise<Tagge
   if (items.length === 0) throw new Error("No garments found in the photo");
   return items;
 }
+
+// Duplicate detection (PROJECT.md §5) — validated empirically before building the review UI
+// around it: 5/5 correct on genuinely-different-but-similar garments (two white tees, two
+// black trousers, etc.), all at 0.98-0.99 confidence, on the owner's real wardrobe. It's
+// conservative — it can miss a true duplicate (called one "different" because the two
+// generated photos disagreed on a zip colour) rather than invent one, which is the right
+// failure mode for a flag-for-review feature.
+const COMPARE_PROMPT =
+  `These are two photos, each showing one garment. Decide whether they show THE SAME ` +
+  `individual physical garment (the same item photographed twice — possibly different ` +
+  `angle, lighting, or one is a cleaned-up product shot of the other), or TWO DIFFERENT ` +
+  `garments (even if very similar — two plain white tees are still two different garments).\n\n` +
+  `Weigh: cut, silhouette, sleeve length, neckline, closures, pockets, seams, print/pattern ` +
+  `placement, distinctive wear or markings. Ignore differences that are just photography ` +
+  `(background, lighting, crop, one being an isolated product render).\n\n` +
+  `Return ONLY JSON: {"verdict":"same"|"different","confidence":0-1,"why":"one sentence"}`;
+
+export interface GarmentComparison {
+  verdict: "same" | "different";
+  confidence: number;
+  why: string;
+}
+
+/** Asks whether two garment photos show the same physical item. Used to flag suspected
+ * duplicates for review (src/app/duplicates) — never to auto-delete anything. */
+export async function compareGarmentPhotos(
+  a: { base64: string; mimeType: string },
+  b: { base64: string; mimeType: string }
+): Promise<GarmentComparison> {
+  const message = await client().messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 300,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Photo 1:" },
+          {
+            type: "image",
+            source: { type: "base64", media_type: a.mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: a.base64 },
+          },
+          { type: "text", text: "Photo 2:" },
+          {
+            type: "image",
+            source: { type: "base64", media_type: b.mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: b.base64 },
+          },
+          { type: "text", text: COMPARE_PROMPT },
+        ],
+      },
+    ],
+  });
+  const text = message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("The model didn't return a JSON object");
+  return JSON.parse(text.slice(start, end + 1));
+}

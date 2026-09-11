@@ -139,10 +139,13 @@ a {
 }
 .chip {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+  text-decoration: none;
   padding: 7px 13px;
   white-space: nowrap;
   border: 1px solid var(--line);
@@ -159,6 +162,22 @@ a {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+/* The "Review duplicates" entry point — a real link to its own page (src/app/duplicates),
+   not a category filter, so it's deliberately styled apart from the other chips: ink-filled
+   rather than the cobalt "active filter" treatment, monochrome like the review badges. */
+.chip-dupes {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--card);
+}
+.chip-dupes:hover {
+  opacity: 0.85;
+  border-color: var(--ink);
+  color: var(--card);
+}
+.chip-dupes::before {
+  content: "≈ ";
 }
 /* Coverage nudge — a category that's short of its build-an-outfit minimum (lib/coverage.ts),
    e.g. only 1 or 2 bottoms uploaded so far. `.chip-alert` is the tappable hit area (bigger
@@ -694,15 +713,22 @@ textarea {
   flex-basis: 100%;
 }
 
-/* "Check this" — the tagger inferred hidden/occluded details. Kept monochrome on purpose:
-   red is for errors and coverage gaps, cobalt is for interactive/active, and the design
-   system deliberately avoids a warm accent colour. The "!" glyph carries the meaning; the
-   solid ink border makes it read against any photo. */
-.review-badge {
+/* Card nudges — "check this" (occluded/inferred details) and "possible dupe". Stacked in
+   one corner rather than each claiming their own. Kept monochrome on purpose: red is for
+   errors and coverage gaps, cobalt is for interactive/active, and the design system
+   deliberately avoids a warm accent colour — the glyph carries the meaning, the solid ink
+   border makes it read against any photo. */
+.card-badges {
   position: absolute;
   top: 8px;
   left: 8px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.review-badge {
   font-family: var(--font-mono), monospace;
   font-size: 9px;
   font-weight: 700;
@@ -713,8 +739,11 @@ textarea {
   background: var(--card);
   border: 1px solid var(--ink);
 }
-.review-badge::before {
+.review-badge.badge-check::before {
   content: "! ";
+}
+.review-badge.badge-dupe::before {
+  content: "≈ ";
 }
 .review-note {
   margin: 10px 0 0;
@@ -808,5 +837,77 @@ textarea {
     flex-basis: 100%;
     width: 100%;
     max-width: 320px;
+  }
+}
+
+/* ---------- duplicate review queue (src/app/duplicates) ---------- */
+.dup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 22px;
+}
+.dup-row {
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 18px;
+}
+.dup-pair {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.dup-side {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.dup-frame {
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  background: var(--ground);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.dup-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dup-side-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dup-vs {
+  flex: 0 0 auto;
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  color: var(--line);
+}
+.dup-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted);
+}
+.dup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 560px) {
+  .dup-pair {
+    flex-direction: column;
+  }
+  .dup-vs {
+    transform: rotate(90deg);
   }
 }

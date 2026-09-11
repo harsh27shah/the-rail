@@ -107,6 +107,8 @@ export function Storefront({ items }: { items: Item[] }) {
     return haystack.includes(query.toLowerCase());
   });
 
+  const duplicateCount = items.filter((it) => it.duplicateOfId).length;
+
   const swatches = items.flatMap((it) => it.palette).slice(0, 14);
   const nonNeutralCount = items.filter(
     (it) => !NEUTRALS.some((n) => it.color.toLowerCase().includes(n))
@@ -165,6 +167,11 @@ export function Storefront({ items }: { items: Item[] }) {
       </div>
 
       <div className="rail" ref={railRef}>
+        {duplicateCount > 0 && (
+          <Link href="/duplicates" className="chip chip-dupes">
+            Review duplicates · {duplicateCount}
+          </Link>
+        )}
         {["All", ...presentCategories].map((c) => {
           const gap = c !== "All" ? coverageGap(c as Category, counts[c] ?? 0) : null;
           return (

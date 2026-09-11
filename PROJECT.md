@@ -470,17 +470,30 @@ Suggested build order:
     item is stored with `needs_review = true` + a `review_note`, shown as a small "! CHECK"
     badge on the grid card and a one-line note on the detail page. Editing the item clears
     the flag (that counts as having reviewed it); a post-correction re-tag re-evaluates it.
-13. ⬜ **Duplicate detection.** Approach validated (spike, not yet built) — Claude visual
-    comparison of two garment photos, asked "same physical item or two different garments?".
-    Spike result on the owner's real wardrobe: **5/5 correct on genuinely-different pairs,
-    all at 0.98–0.99 confidence** — so the feature won't nag about two similar-but-distinct
-    white tees, which was the main risk. It's *conservative*: it called a likely-true
-    duplicate "different" (0.7) because generated details differed between the two — i.e. it
-    misses some dupes rather than inventing them, the right way to fail for a
-    flag-for-review flow. Plan: run it in the background after upload, scoped to same-
-    category items and pre-filtered to plausible candidates (shared colour word / similar
-    name) to keep call volume down; flag suspected pairs for the owner to confirm
-    ("remove the new one" / "keep both") — never auto-delete.
+13. ✅ **Duplicate detection.** Live — background check after every upload (in
+    `addPhotoAction`'s `after()`, right after extraction), using the same Claude visual
+    comparison validated in the earlier spike (5/5 correct on genuinely-different pairs at
+    0.98–0.99 confidence; conservative on true dupes rather than inventing false ones — see
+    `compareGarmentPhotos` in `lib/anthropic.ts`). Scoped to same-category items and
+    pre-filtered to plausible candidates (`findDuplicateCandidates` — shares a colour word or
+    a name word with the new item, capped to 5) so a 50-item wardrobe doesn't mean 50 vision
+    calls per upload. A match at ≥0.6 confidence sets `duplicate_of` (+ `duplicate_note`,
+    `duplicate_confidence`) on the newer item, pointing at the earlier one.
+    - **Review UX, not auto-delete, ever.** A small "≈ Possible dupe" badge appears on both
+      grid cards (same monochrome treatment as the "! Check" occlusion badge — stacked
+      together in `.card-badges` when an item has both). The real work happens on a
+      dedicated **`/duplicates`** page, reached via a **"Review duplicates · N"** pill in the
+      filter rail (only shown when N > 0) — a full list of every pending pair, each with both
+      photos side by side, the model's one-line reasoning, and three actions: keep both
+      (dismiss), remove this one, remove that one. Deliberately a scannable list rather than
+      a one-pair-at-a-time modal — a single bulk upload can flag a dozen pairs at once, and a
+      list lets the owner work through them in any order or leave and come back, instead of
+      being marched through a stepper.
+    - `duplicate_of` is a self-referencing FK with `on delete set null`, so deleting either
+      item through *any* path (not just the review page — the ordinary bulk-delete/select
+      flow works too) can't leave a dangling reference; the leftover `duplicate_note`/
+      `duplicate_confidence` text is harmless since the UI only reads them when
+      `duplicate_of` is actually set.
 14. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

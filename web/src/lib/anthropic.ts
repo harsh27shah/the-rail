@@ -218,20 +218,40 @@ export async function tagPhoto(base64: string, mediaType: string): Promise<Tagge
   return items;
 }
 
-// Duplicate detection (PROJECT.md §5) — validated empirically before building the review UI
-// around it: 5/5 correct on genuinely-different-but-similar garments (two white tees, two
-// black trousers, etc.), all at 0.98-0.99 confidence, on the owner's real wardrobe. It's
-// conservative — it can miss a true duplicate (called one "different" because the two
-// generated photos disagreed on a zip colour) rather than invent one, which is the right
-// failure mode for a flag-for-review feature.
+// Duplicate detection (PROJECT.md §5) — went through three designs before landing here,
+// each validated empirically against the owner's real wardrobe before shipping:
+//   1. Compare each item's current `image_path` (whatever it happens to be right now).
+//      Missed several genuine duplicates from one bulk upload: a candidate created moments
+//      earlier can still be mid-extraction when this runs, so a fresh isolated photo got
+//      compared against another item's still-raw upload.
+//   2. Compare `original_image_path` on both sides instead — always available, never
+//      changes. Worse, not better: a photo showing several garments (an ordinary mirror-
+//      selfie upload) gives every garment detected in it its own copy of that same multi-
+//      subject scene as its "original", so comparing two items' originals often compares
+//      whichever garment is most visually prominent in each scene, not the one in question.
+//      Confirmed directly: it flagged a t-shirt as a duplicate of an unrelated jacket because
+//      both original photos happened to feature a similar-looking coat elsewhere in frame.
+//   3. Compare only the extracted (isolated single-garment) photos — correctly avoids the
+//      wrong-subject problem, but under-detects: two independent Gemini generations of the
+//      same real garment can render it differently enough (crop, exact shade, a logo detail)
+//      that the comparison misses confirmed real duplicates.
+// Landed on: send BOTH photos for BOTH items (original for true context + ground truth,
+// isolated for a clean single-garment view) and ask for one verdict, explicitly told to
+// trust the original when they seem to disagree. Re-validated against the same real pairs:
+// caught every confirmed duplicate the first two designs individually missed, at 0.85-0.98
+// confidence, while still correctly calling the t-shirt/jacket pair "different" (0.98).
 const COMPARE_PROMPT =
-  `These are two photos, each showing one garment. Decide whether they show THE SAME ` +
-  `individual physical garment (the same item photographed twice — possibly different ` +
-  `angle, lighting, or one is a cleaned-up product shot of the other), or TWO DIFFERENT ` +
-  `garments (even if very similar — two plain white tees are still two different garments).\n\n` +
+  `You're deciding whether ITEM A and ITEM B are the same individual physical garment or ` +
+  `two different garments. For each item you're shown two photos: its ORIGINAL upload (may ` +
+  `show a person wearing several garments at once — focus only on the specific item this ` +
+  `side is about) and an ISOLATED photo (an AI-cleaned single-garment product shot, which ` +
+  `can have its own rendering quirks — slightly different crop, pose, or exact shade each ` +
+  `time it's generated, even for the same real garment). Use both together: the original ` +
+  `tells you the true context and exact appearance; the isolated shot removes background ` +
+  `clutter. If they seem to disagree, trust the original for ground truth.\n\n` +
   `Weigh: cut, silhouette, sleeve length, neckline, closures, pockets, seams, print/pattern ` +
   `placement, distinctive wear or markings. Ignore differences that are just photography ` +
-  `(background, lighting, crop, one being an isolated product render).\n\n` +
+  `(background, lighting, crop) or just generation variance in the isolated shots.\n\n` +
   `Return ONLY JSON: {"verdict":"same"|"different","confidence":0-1,"why":"one sentence"}`;
 
 export interface GarmentComparison {
@@ -240,29 +260,46 @@ export interface GarmentComparison {
   why: string;
 }
 
-/** Asks whether two garment photos show the same physical item. Used to flag suspected
- * duplicates for review (src/app/duplicates) — never to auto-delete anything. */
-export async function compareGarmentPhotos(
-  a: { base64: string; mimeType: string },
-  b: { base64: string; mimeType: string }
-): Promise<GarmentComparison> {
+export interface GarmentPhotoPair {
+  /** The true upload — may show a person wearing several garments at once. */
+  original: { base64: string; mimeType: string };
+  /** The cleaned-up, isolated single-garment shot. */
+  extracted: { base64: string; mimeType: string };
+}
+
+function imageBlock(image: { base64: string; mimeType: string }) {
+  return {
+    type: "image" as const,
+    source: {
+      type: "base64" as const,
+      media_type: image.mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+      data: image.base64,
+    },
+  };
+}
+
+/** Asks whether two garments — each represented by its original upload plus its isolated
+ * product shot — are the same physical item. Used to flag suspected duplicates for review
+ * (src/app/duplicates) — never to auto-delete anything. */
+export async function compareGarmentPhotos(a: GarmentPhotoPair, b: GarmentPhotoPair): Promise<GarmentComparison> {
   const message = await client().messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 300,
+    // 300 was too tight for this richer 4-image prompt — it sometimes reasons at more
+    // length before the JSON and got cut off mid-object often enough to matter (4 of 27
+    // comparisons truncated in the backfill that validated this design).
+    max_tokens: 600,
     messages: [
       {
         role: "user",
         content: [
-          { type: "text", text: "Photo 1:" },
-          {
-            type: "image",
-            source: { type: "base64", media_type: a.mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: a.base64 },
-          },
-          { type: "text", text: "Photo 2:" },
-          {
-            type: "image",
-            source: { type: "base64", media_type: b.mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif", data: b.base64 },
-          },
+          { type: "text", text: "ITEM A — original photo:" },
+          imageBlock(a.original),
+          { type: "text", text: "ITEM A — isolated photo:" },
+          imageBlock(a.extracted),
+          { type: "text", text: "ITEM B — original photo:" },
+          imageBlock(b.original),
+          { type: "text", text: "ITEM B — isolated photo:" },
+          imageBlock(b.extracted),
           { type: "text", text: COMPARE_PROMPT },
         ],
       },

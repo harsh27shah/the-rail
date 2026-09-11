@@ -383,6 +383,7 @@ function wordsOverlap(a: Set<string>, b: Set<string>): boolean {
 export interface DuplicateCandidate {
   id: string;
   imagePath: string;
+  originalImagePath: string;
 }
 
 /**
@@ -391,6 +392,16 @@ export interface DuplicateCandidate {
  * number of vision calls per upload small (a handful, not every same-category item) without
  * meaningfully hurting recall: two garments that share neither a colour word nor a name word
  * are unlikely to be the same physical item anyway.
+ *
+ * Returns both of a candidate's photos — `compareGarmentPhotos` (lib/anthropic.ts) uses
+ * both together, on both sides of the comparison. See that function's comment for the full
+ * story: comparing only `image_path` (which can be stale mid-extraction) or only
+ * `original_image_path` (which, for a photo showing several garments, is a full copy of that
+ * whole scene shared by every garment detected in it — comparing two such "originals" can
+ * end up comparing the wrong garment entirely) were each tried and found wanting on their
+ * own. A candidate whose own extraction hasn't finished yet (`image_path` still equals
+ * `original_image_path`) is skipped for now rather than compared with a stand-in — the
+ * periodic backfill script catches it later once it's ready.
  */
 export async function findDuplicateCandidates(
   category: Category,
@@ -404,7 +415,7 @@ export async function findDuplicateCandidates(
 
   const { data, error } = await admin
     .from("items")
-    .select("id, name, color, image_path")
+    .select("id, name, color, image_path, original_image_path")
     .eq("category", category)
     .neq("id", excludeId)
     .not("image_path", "is", null);
@@ -412,16 +423,27 @@ export async function findDuplicateCandidates(
 
   const colorWords = significantWords(color);
   const nameWords = significantWords(name);
-  const rows = data as { id: string; name: string; color: string; image_path: string | null }[];
+  const rows = data as {
+    id: string;
+    name: string;
+    color: string;
+    image_path: string | null;
+    original_image_path: string | null;
+  }[];
 
   return rows
+    .filter((row) => row.image_path && row.original_image_path && row.image_path !== row.original_image_path)
     .filter(
       (row) =>
         wordsOverlap(colorWords, significantWords(row.color)) ||
         wordsOverlap(nameWords, significantWords(row.name))
     )
     .slice(0, limit)
-    .map((row) => ({ id: row.id, imagePath: row.image_path as string }));
+    .map((row) => ({
+      id: row.id,
+      imagePath: row.image_path as string,
+      originalImagePath: row.original_image_path as string,
+    }));
 }
 
 /** Flags `newItemId` as a suspected duplicate of `originalItemId` — set on the newer item,

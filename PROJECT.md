@@ -494,6 +494,61 @@ Suggested build order:
       flow works too) can't leave a dangling reference; the leftover `duplicate_note`/
       `duplicate_confidence` text is harmless since the UI only reads them when
       `duplicate_of` is actually set.
+    - **Real bulk-upload batch missed 5 genuine duplicate pairs — took three attempts to
+      actually fix.** Each attempt was empirically checked against the owner's real wardrobe
+      before the next one; the failures were as informative as the fix.
+      1. **Original design: compare each item's current `image_path`.** Missed several
+         duplicates in one bulk batch: `image_path` gets replaced by a several-second
+         background extraction job, so a candidate created moments earlier can still be
+         mid-extraction when a same-batch check runs — comparing a fresh isolated photo
+         against another item's still-raw upload.
+      2. **Attempt 1: compare `original_image_path` on both sides instead** — it never
+         changes, so it's always ready. Worse, not better: a photo showing several garments
+         (an ordinary mirror-selfie upload) gives every garment detected in it its own *copy*
+         of that same multi-subject scene as its "original", so comparing two items'
+         originals often compares whichever garment is most visually prominent in each scene,
+         not the specific item in question. Confirmed directly — it flagged a t-shirt as a
+         duplicate of an unrelated jacket because both original photos happened to feature a
+         similar-looking coat elsewhere in frame — and on a real backfill it missed 3 of the
+         5 known pairs the owner had already spotted by eye.
+      3. **Attempt 2: compare only the extracted (isolated single-garment) photo** — avoids
+         the wrong-subject problem, matches what the original validation spike tested. Still
+         not enough: it now *under*-detected, missing confirmed real duplicates (a pair of
+         trousers, a pair of trainers) that attempt 1 had actually — if accidentally — gotten
+         right. Two independent Gemini generations of the same physical garment can render it
+         differently enough (crop, exact shade, whether a logo variant renders) that comparing
+         only the generated photos loses the resemblance.
+      4. **Landed on: send BOTH photos (original + extracted) for BOTH items, one verdict,
+         explicitly told to trust the original when they disagree.** Combines each design's
+         strength without its failure mode — the isolated shot keeps the comparison on the
+         right garment, the original supplies ground truth the generation might have drifted
+         from. Re-validated against the same known pairs: caught every confirmed duplicate
+         the single-image attempts had individually missed (0.85–0.98 confidence), while
+         still correctly calling the t-shirt/jacket pair "different" (0.98).
+      `findDuplicateCandidates` only returns a candidate once its own extraction has actually
+      finished (`image_path !== original_image_path`) — a still-processing candidate is
+      skipped for now rather than compared with a stand-in; the periodic backfill catches it
+      once ready. `scripts/backfill-duplicates.mjs` mirrors the live comparison logic exactly
+      (kept in sync by hand, as with the other backfill scripts). Also bumped `max_tokens`
+      300 → 600 for this comparison call — the richer 4-image prompt sometimes reasons at
+      more length before the JSON, and 300 truncated a handful of responses mid-object on
+      the backfill that validated this design; the candidate loop (live and backfill both)
+      now also survives one bad response instead of abandoning the rest of that item's
+      candidates.
+      Ran the corrected backfill against the whole wardrobe: **3 of the owner's 5 reported
+      pairs are now correctly flagged** (the trainers, the navy trousers, and the cream
+      quarter-zip — which turned out to have three copies, not two, all now linked
+      together). **One of the remaining two turned out to genuinely be different garments
+      on closer inspection**, confirmed both by the model (0.72, citing a real difference in
+      collar construction, one shirt showing a visible brand neck tag the other doesn't) and
+      by looking at the actual photos directly — not a detection miss. **The last pair
+      (khaki chinos vs. a similar pair of stretch trousers) is still genuinely unresolved** —
+      the model consistently calls them different (0.75, citing cropped vs. full length and
+      a belt in one photo but not the other) and a direct look at both photos didn't settle
+      it either way. Left unflagged rather than forced; the owner is the actual authority on
+      whether it's one pair of trousers or two. Logged all of this here rather than silently
+      "fixed" because it's a real reminder that this feature is a nudge to check, not a
+      ground-truth judge of the owner's own wardrobe.
 14. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

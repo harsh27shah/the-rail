@@ -73,32 +73,44 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
       ids.push(id);
 
       const description = [color, name].filter(Boolean).join(" ") || "garment";
+      const mimeType = photo.type || "image/jpeg";
       after(async () => {
-        // Extraction first — the duplicate check below prefers comparing two clean product
-        // shots over a raw photo against a clean one, matching how it was validated.
+        // Extraction first — the duplicate check wants this item's isolated product photo
+        // alongside its raw upload (see compareGarmentPhotos' comment for why it uses both).
         let extracted: { data: string; mimeType: string } | null = null;
         try {
-          extracted = await extractGarmentImage(base64, photo.type || "image/jpeg", description);
+          extracted = await extractGarmentImage(base64, mimeType, description);
           if (extracted) await replaceItemImage(id, extracted.data, extracted.mimeType);
         } catch (e) {
           console.error("Garment extraction failed for item", id, e);
         }
 
-        // Duplicate check — best-effort, never blocks or fails the upload. Only compares
-        // against a handful of plausible same-category candidates (see
-        // findDuplicateCandidates), not the whole wardrobe.
+        // Duplicate check — best-effort, never blocks or fails the upload. Skipped entirely
+        // if extraction failed: there's nothing reliable yet to compare. Only checks against
+        // candidates whose own extraction has already finished (findDuplicateCandidates) —
+        // a same-batch upload still mid-extraction is simply not compared against right now;
+        // the periodic backfill script catches it once it's ready.
+        if (!extracted) return;
         try {
           const candidates = await findDuplicateCandidates(category, color, name, id);
-          const newImage = extracted ?? { data: base64, mimeType: photo.type || "image/jpeg" };
           for (const candidate of candidates) {
-            const candidateImage = await downloadImage(candidate.imagePath);
-            const result = await compareGarmentPhotos(
-              { base64: newImage.data, mimeType: newImage.mimeType },
-              { base64: candidateImage.base64, mimeType: candidateImage.mimeType }
-            );
-            if (result.verdict === "same" && result.confidence >= DUPLICATE_CONFIDENCE_THRESHOLD) {
-              await flagDuplicate(id, candidate.id, result.why, result.confidence);
-              break; // one flagged match is enough to surface for review
+            try {
+              const [candidateExtracted, candidateOriginal] = await Promise.all([
+                downloadImage(candidate.imagePath),
+                downloadImage(candidate.originalImagePath),
+              ]);
+              const result = await compareGarmentPhotos(
+                { original: { base64, mimeType }, extracted: { base64: extracted.data, mimeType: extracted.mimeType } },
+                { original: candidateOriginal, extracted: candidateExtracted }
+              );
+              if (result.verdict === "same" && result.confidence >= DUPLICATE_CONFIDENCE_THRESHOLD) {
+                await flagDuplicate(id, candidate.id, result.why, result.confidence);
+                break; // one flagged match is enough to surface for review
+              }
+            } catch (e) {
+              // A single bad comparison (e.g. a truncated response) shouldn't stop the rest
+              // of this item's candidates from being checked.
+              console.error("Duplicate comparison failed for item", id, "vs", candidate.id, e);
             }
           }
         } catch (e) {

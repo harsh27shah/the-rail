@@ -401,8 +401,8 @@ a {
    text pill for the rare item with no photo yet. */
 .pair-pill-img {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   background: rgba(247, 246, 242, 0.08);
 }
 .pair-pill-img img {

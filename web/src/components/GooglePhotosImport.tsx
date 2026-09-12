@@ -16,11 +16,24 @@ import { startGooglePhotosSession } from "@/app/add/google-photos-actions";
  * Once photos are downloaded here, they're handed to the parent as ordinary `File` objects
  * via `onImported` — from that point on they go through the exact same upload pipeline as
  * a locally-chosen file. No changes needed anywhere else in the add flow.
+ *
+ * Opening the picker tab is deliberately its own explicit tap ("ready" phase, below) rather
+ * than something this component tries to do on the owner's behalf right after fetching a
+ * session. Found necessary in real use: Safari (especially on iOS) only allows
+ * `window.open` when it happens perfectly synchronously inside a genuine tap — ours used to
+ * fire straight after `await`ing the session-creation call, which is enough of a delay for
+ * Safari to silently treat it as an unrequested popup and block it, with no error to catch.
+ * The fix isn't a cleverer way to sneak a `window.open` past that (an earlier attempt at
+ * pre-opening a blank window before the `await` is a known trick, but it's fragile and still
+ * browser-dependent) — it's to never need one: every `window.open` call in this file happens
+ * directly inside a real onClick, full stop, including the one time the session was created
+ * moments earlier by the OAuth callback rather than by this component.
  */
 
 type Phase =
   | { kind: "idle" }
   | { kind: "connecting" }
+  | { kind: "ready"; sessionId: string; pickerUri: string }
   | { kind: "waiting"; sessionId: string }
   | { kind: "importing"; done: number; total: number }
   | { kind: "error"; message: string };
@@ -82,9 +95,8 @@ export function GooglePhotosImport({
     [onImported]
   );
 
-  const beginWaiting = useCallback(
-    (sessionId: string, pickerUri: string) => {
-      window.open(pickerUri, "_blank", "noopener,noreferrer");
+  const startPolling = useCallback(
+    (sessionId: string) => {
       setPhase({ kind: "waiting", sessionId });
       pollDeadline.current = Date.now() + POLL_TIMEOUT_MS;
 
@@ -114,6 +126,8 @@ export function GooglePhotosImport({
   // Resume where the OAuth callback left off (src/app/api/google-photos/callback/route.ts) —
   // it already created a session and redirected here with both ids, since the owner was
   // already mid-flow on Google's domain and didn't need a detour back through this app first.
+  // This still only gets the owner to the "ready" phase, not an auto-opened tab — see this
+  // file's top comment on why every window.open stays behind an explicit tap.
   useEffect(() => {
     const gpError = searchParams.get("gpError");
     const gpSession = searchParams.get("gpSession");
@@ -121,21 +135,21 @@ export function GooglePhotosImport({
     if (!gpError && !(gpSession && gpPickerUri)) return;
 
     router.replace("/add");
-    // Deferred a tick rather than calling setPhase/beginWaiting directly in the effect body —
-    // opening a new tab and starting polling are real side effects tied to a one-time mount
-    // condition (not something to run on every render), but doing so synchronously inside the
-    // effect trips react-hooks' "no setState during an effect" check. A zero-delay timer moves
-    // it just far enough outside that without changing when the user actually sees anything.
+    // Deferred a tick rather than calling setPhase directly in the effect body — this is a
+    // real side effect tied to a one-time mount condition (not something to run on every
+    // render), but doing so synchronously inside the effect trips react-hooks' "no setState
+    // during an effect" check. A zero-delay timer moves it just far enough outside that
+    // without changing when the owner actually sees anything.
     const timer = setTimeout(() => {
       if (gpError) {
         setPhase({ kind: "error", message: gpError });
       } else if (gpSession && gpPickerUri) {
-        beginWaiting(gpSession, gpPickerUri);
+        setPhase({ kind: "ready", sessionId: gpSession, pickerUri: gpPickerUri });
       }
     }, 0);
     return () => clearTimeout(timer);
     // Intentionally only on mount — re-running this on every searchParams identity change
-    // would re-trigger the picker after router.replace clears the query string.
+    // would re-trigger this after router.replace clears the query string.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -156,7 +170,18 @@ export function GooglePhotosImport({
       setPhase({ kind: "error", message: result.error });
       return;
     }
-    beginWaiting(result.sessionId, result.pickerUri);
+    setPhase({ kind: "ready", sessionId: result.sessionId, pickerUri: result.pickerUri });
+  }
+
+  function openPicker(sessionId: string, pickerUri: string) {
+    // The one and only place this file calls window.open — always directly inside a real
+    // onClick, so Safari's popup blocker never has a reason to step in (see top comment).
+    const opened = window.open(pickerUri, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      setPhase({ kind: "error", message: "Your browser blocked that tab from opening — try again" });
+      return;
+    }
+    startPolling(sessionId);
   }
 
   function cancel() {
@@ -175,6 +200,20 @@ export function GooglePhotosImport({
         <button type="button" className="btn ghost" disabled>
           Connecting…
         </button>
+      )}
+      {phase.kind === "ready" && (
+        <div className="google-photos-status">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => openPicker(phase.sessionId, phase.pickerUri)}
+          >
+            Open Google Photos to pick →
+          </button>
+          <button type="button" className="btn ghost small" onClick={cancel}>
+            Cancel
+          </button>
+        </div>
       )}
       {phase.kind === "waiting" && (
         <div className="google-photos-status">

@@ -36,7 +36,26 @@ const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 // storefront displays at a fixed 3:4 with `object-fit: cover`, so a mismatched canvas shape
 // can leave a perfectly fine garment looking half cut-off in the UI.
 const CARD_RATIO = 3 / 4;
-const PAD_BACKGROUND = { r: 247, g: 246, b: 242 };
+
+async function sampleBackgroundColor(buffer, width, height) {
+  const inset = Math.max(1, Math.round(Math.min(width, height) * 0.01));
+  const points = [
+    [inset, inset],
+    [width - inset - 1, inset],
+    [inset, height - inset - 1],
+    [width - inset - 1, height - inset - 1],
+  ];
+  let r = 0,
+    g = 0,
+    b = 0;
+  for (const [left, top] of points) {
+    const pixel = await sharp(buffer).extract({ left, top, width: 1, height: 1 }).raw().toBuffer();
+    r += pixel[0];
+    g += pixel[1];
+    b += pixel[2];
+  }
+  return { r: Math.round(r / points.length), g: Math.round(g / points.length), b: Math.round(b / points.length) };
+}
 
 async function normalizeProductPhoto(base64, mimeType) {
   const buffer = Buffer.from(base64, "base64");
@@ -53,8 +72,17 @@ async function normalizeProductPhoto(base64, mimeType) {
   const ratio = width / height;
   const targetWidth = ratio > CARD_RATIO ? width : Math.round(height * CARD_RATIO);
   const targetHeight = ratio > CARD_RATIO ? Math.round(width / CARD_RATIO) : height;
+  // Sampled from the photo's own background rather than a fixed colour — Gemini's "plain
+  // neutral studio background" isn't the same tone every generation, and a fixed pad colour
+  // left a visible seam where it met the real one (found in real use, see product-photo.ts).
+  let background = { r: 247, g: 246, b: 242 };
+  try {
+    background = await sampleBackgroundColor(working, width, height);
+  } catch {
+    // Fall back to the fixed neutral above.
+  }
   const out = await sharp(working)
-    .resize(targetWidth, targetHeight, { fit: "contain", background: PAD_BACKGROUND })
+    .resize(targetWidth, targetHeight, { fit: "contain", background })
     .jpeg({ quality: 92 })
     .toBuffer();
   return { data: out.toString("base64"), mimeType: "image/jpeg" };

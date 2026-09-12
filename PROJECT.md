@@ -675,12 +675,21 @@ Suggested build order:
     - **Fix: `normalizeProductPhoto` (`src/lib/product-photo.ts`)** runs on every photo
       `extractGarmentImage`/`correctGarmentImage` (`lib/gemini.ts`) return, before it's ever
       stored. It trims the excess plain background down to the actual garment (`sharp`'s
-      `trim()`), then letterboxes the result to the app's own 3:4 with a background matching
-      `--card` — so by the time a photo reaches storage, its own ratio already matches the
-      display box and `cover` never needs to crop anything away. Verified directly: the
-      real chinos and trainers photos, re-run through the fixed pipeline, now display fully
-      and correctly on the storefront (screenshotted side by side with the rest of their
-      category rows).
+      `trim()`), then letterboxes the result to the app's own 3:4 — so by the time a photo
+      reaches storage, its own ratio already matches the display box and `cover` never needs
+      to crop anything away. Verified directly: the real chinos and trainers photos, re-run
+      through the fixed pipeline, now display fully and correctly on the storefront.
+      - **First version of this fix padded with a fixed colour matching `--card`, and
+        introduced a visible seam of its own** — caught immediately in the owner's own
+        screenshot of the result: a band where the fixed pad colour met Gemini's actual
+        generated background, which isn't the same tone every generation (a warm cream one
+        time, a cooler grey another). **Fixed properly** by sampling the letterboxed photo's
+        own background colour (averaging a few points inset from each corner, so one noisy
+        pixel at the trim boundary can't skew it) instead of a fixed value, so the padding
+        always continues the same photo's own tone. Verified side by side on the same real
+        chinos photo — the fixed-colour version shows a visible seam, the sampled version
+        doesn't — then re-applied to all three real items and confirmed seamless in the
+        browser.
     - **Considered and rejected: widening the multi-person crop itself** (item 18) to a more
       normal aspect ratio, so Gemini would have a less extreme canvas to work with in the
       first place. Rejected because widening would extend the crop sideways — directly

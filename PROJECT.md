@@ -583,7 +583,54 @@ Suggested build order:
       Considered dropping it from the chip once the shelf carries it, but they're both
       visible at the same time on "All" anyway, so left both rather than adding a special
       case for no real benefit.
-18. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+18. ✅ **Multi-person photo disambiguation.** Live — solves the ingestion question raised
+    while brainstorming photo-library import for a new user: if the app can read a whole
+    camera roll, what stops someone else's clothes (a partner, a friend, a stranger in the
+    background) from silently ending up in the owner's wardrobe? Confirmed as a real gap
+    first, not assumed — a synthetic two-person test photo run through the existing
+    `tagPhoto` prompt catalogued all 7 garments from both people with nothing marking which
+    belonged to whom.
+    - **How it works.** `tagPhoto` (`src/lib/anthropic.ts`) now reports `peopleCount`
+      alongside its garments, at no extra latency on the common single-person case (folded
+      into the existing tagging call, not a separate check). When `peopleCount > 1`,
+      nothing is catalogued automatically — instead `detectPeople` (`src/lib/gemini.ts`)
+      finds each person's bounding box, and the Add flow (`AddPhotosForm.tsx`) pauses the
+      upload and shows "Multiple people — tap the one that's you" over the actual photo.
+      Whichever box the owner taps is real-pixel-cropped (`src/lib/crop.ts`, using `sharp`
+      — a true crop, not a Gemini regeneration, deliberately, so nothing about the garment
+      can drift the way a regeneration sometimes does, see item 13 below) and only that
+      crop re-enters the ordinary tagging/extraction pipeline. The full multi-person photo
+      is never stored — only the single-person crop becomes the item's photo, so whoever
+      else was in frame never touches storage at all.
+    - **Deliberately not biometric.** The app never builds or stores any notion of "what
+      does the owner look like." Nothing about a person is remembered across photos —
+      identity is established solely by the owner's own tap, in the moment, on the one
+      photo in front of them. This was a hard design line, not a corner cut for time: aside
+      from being unnecessary here, persisting "what a specific person looks like" is
+      biometric data under laws like Illinois' BIPA and the EU GDPR's "special category"
+      rules, a real liability this app has no reason to take on.
+    - **Provider choice was tested, not assumed.** Both Claude and Gemini were tried on a
+      synthetic 3-person test photo with known ground-truth positions. Gemini's normalized
+      `box_2d` coordinates matched real pixel positions within a few percent; Claude's were
+      directionally sensible but didn't reliably respect the requested 0–1000 scale. Gemini
+      was chosen for this one capability on that basis, alongside Claude still doing all
+      tagging/comparison work as before.
+    - **Bug found and fixed during end-to-end testing: tapping a person silently created
+      zero items, with no error shown.** A tight single-person crop, even with 15% padding,
+      could still include a sliver of the next person over — and Claude, correctly seeing
+      a second (barely-visible) person in that crop, reported `peopleCount: 2` on it. Under
+      the original tagging prompt's universal rule ("if more than one person, return no
+      garments"), that meant the post-selection re-tag also came back empty, and the client
+      treated "zero failures, zero skips" as a clean success and redirected to the rail —
+      masking the failure entirely. Fixed with a second tagging mode
+      (`"single-person"`, used only for the post-crop re-tag) that explicitly says to
+      ignore anyone else visible at the frame's edge and catalogue only the main, central
+      person. Verified against the exact crop that triggered the bug, then re-verified with
+      a full browser end-to-end run: uploading the two-person test photo, tapping the
+      correct box, and confirming via a direct database query that exactly the right
+      garments were created, each pointing at a freshly-stored crop, with nothing from the
+      other person anywhere in the result.
+19. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
@@ -619,3 +666,11 @@ whole timeline — confirmed P2, see §2.
   watching and waiting for this one (they just clicked "regenerate"), so a ~5-15s wait with
   a visible pending state is the right call here — the opposite tradeoff from the upload
   flow, deliberately.
+- **Multi-person photos are handled by a per-photo tap, never by recognising a person.**
+  Considered and rejected: building any notion of "what does the owner look like" and
+  matching against it automatically. Chosen instead: detect that a photo has more than one
+  person (purely spatial — bounding boxes, nothing about appearance is stored) and ask the
+  owner to tap which one is them, every time, with no memory across photos. Slightly more
+  friction than automatic recognition would be, but avoids taking on biometric-data
+  liability (BIPA, GDPR special-category data) for a problem a one-tap UI already solves
+  cleanly. See §5 item 18.

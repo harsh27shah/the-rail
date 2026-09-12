@@ -84,18 +84,54 @@ const OCCLUSION_NOTE =
   `"occludedNote" naming what was inferred (e.g. "sleeve length hidden under jacket"). If ` +
   `the whole garment is clearly visible, set "occluded" to false and "occludedNote" to "".`;
 
-const PROMPT =
-  `This photo may show a person wearing multiple distinct garments that should each become ` +
-  `a separate wardrobe entry — most commonly a top and a bottom (e.g. a shirt and jeans), ` +
-  `sometimes also a distinct third layer such as a jacket or cardigan. Identify every ` +
-  `separately-catalogable main garment visible (tops, bottoms, outerwear, footwear) and ` +
-  `catalogue each one individually and specifically — do not merge them into a single ` +
-  `entry. Skip accessories entirely — jewellery, watches, bags, belts — even if one is ` +
-  `clearly the main subject of the photo; this app doesn't catalogue those for now. If ` +
-  `genuinely only one distinct garment is visible, return an array containing just that ` +
-  `one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ${CATEGORY_NOTE} ${OCCLUSION_NOTE}\n\n` +
-  `Return ONLY a JSON array, no prose and no markdown fences — one object per garment, ` +
-  `each using this schema:\n${ITEM_SCHEMA}`;
+// A photo with more than one person in it (a friend, a stranger in the background wearing
+// a distinct outfit) shouldn't get its garments catalogued at all — see PROJECT.md §5 for
+// why: it's how another person's clothes silently end up in the owner's wardrobe, confirmed
+// directly against a real multi-person test photo before this was added. `peopleCount` rides
+// along on this same call (no extra request, no extra latency on the common single-person
+// case) — `src/app/add/actions.ts` only makes the separate, costlier per-person bounding-box
+// call (see detectPeople in lib/gemini.ts) on the rarer photos that actually need it.
+const PEOPLE_COUNT_NOTE =
+  `Also count how many DIFFERENT people have clothing visible in the photo, as ` +
+  `"peopleCount" — someone barely visible or heavily cropped in the background still ` +
+  `counts if their clothing is identifiable. If peopleCount is more than 1, still return ` +
+  `"garments" as an empty array — don't attempt to catalogue anyone's clothing in that ` +
+  `case, since there's no reliable way to know which person's items should count.`;
+
+// Used once the owner has already tapped "this one is me" on a cropped-down photo
+// (src/app/add/actions.ts's addPhotoWithPersonAction). A tight crop around one person can
+// still catch a sliver of whoever was standing next to them — confirmed directly: cropping
+// to just the tapped person still had Claude reporting peopleCount 2 and (correctly, by the
+// first-pass rule above) zeroing out the garments, silently cataloguing nothing at all.
+// That rule is right for a fresh, un-disambiguated photo; it's wrong once the owner has
+// already told us which person to focus on. This variant drops the peopleCount gate
+// entirely and just tells it who to look at.
+const FOCUS_MAIN_PERSON_NOTE =
+  `This photo has already been cropped to focus on one specific person, but someone else ` +
+  `may still be barely visible at the very edge of the frame. Ignore that person ` +
+  `completely — only catalogue the clothing of the main person filling most of the frame.`;
+
+function buildPrompt(mode: "detect-people" | "single-person"): string {
+  const peopleHandling = mode === "detect-people" ? PEOPLE_COUNT_NOTE : FOCUS_MAIN_PERSON_NOTE;
+  const schema =
+    mode === "detect-people"
+      ? `{"peopleCount": <integer>, "garments": [ /* one object per garment, each using ` +
+        `this schema */ ${ITEM_SCHEMA} ]}`
+      : `{"garments": [ /* one object per garment, each using this schema */ ${ITEM_SCHEMA} ]}`;
+  return (
+    `This photo may show a person wearing multiple distinct garments that should each ` +
+    `become a separate wardrobe entry — most commonly a top and a bottom (e.g. a shirt and ` +
+    `jeans), sometimes also a distinct third layer such as a jacket or cardigan. Identify ` +
+    `every separately-catalogable main garment visible (tops, bottoms, outerwear, ` +
+    `footwear) and catalogue each one individually and specifically — do not merge them ` +
+    `into a single entry. Skip accessories entirely — jewellery, watches, bags, belts — ` +
+    `even if one is clearly the main subject of the photo; this app doesn't catalogue ` +
+    `those for now. If genuinely only one distinct garment is visible, return an array ` +
+    `containing just that one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ` +
+    `${CATEGORY_NOTE} ${OCCLUSION_NOTE} ${peopleHandling}\n\n` +
+    `Return ONLY a JSON object, no prose and no markdown fences, shaped exactly like:\n${schema}`
+  );
+}
 
 export interface TaggedFields {
   name: string;
@@ -111,20 +147,15 @@ export interface TaggedFields {
   occludedNote?: string;
 }
 
+export interface TagPhotoResult {
+  peopleCount: number;
+  garments: TaggedFields[];
+}
+
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set — see .env.local.example");
   return new Anthropic({ apiKey });
-}
-
-function parseJsonArrayReply(text: string): TaggedFields[] {
-  const clean = text.replace(/```json|```/g, "").trim();
-  const start = clean.indexOf("[");
-  const end = clean.lastIndexOf("]");
-  if (start === -1 || end === -1) throw new Error("The model didn't return a JSON array");
-  const parsed = JSON.parse(clean.slice(start, end + 1));
-  if (!Array.isArray(parsed)) throw new Error("Expected a JSON array");
-  return parsed;
 }
 
 const RETAG_PROMPT = (feedback: string) =>
@@ -185,10 +216,41 @@ export async function retagItem(
   return parseJsonObjectReply(text);
 }
 
-/** Tags every distinct garment in a photo. `base64` is raw base64 image data (no data:
- * prefix). Always returns at least one entry when successful — falls back to a single
- * best-effort entry if the model can't confidently separate multiple garments. */
-export async function tagPhoto(base64: string, mediaType: string): Promise<TaggedFields[]> {
+function parseTagPhotoReply(text: string): TagPhotoResult {
+  const clean = text.replace(/```json|```/g, "").trim();
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("The model didn't return a JSON object");
+  const parsed = JSON.parse(clean.slice(start, end + 1));
+  return {
+    peopleCount: typeof parsed.peopleCount === "number" ? parsed.peopleCount : 1,
+    garments: Array.isArray(parsed.garments) ? parsed.garments : [],
+  };
+}
+
+/**
+ * Tags every distinct garment in a photo, and (in "detect-people" mode) reports how many
+ * different people have clothing visible — `garments` is deliberately empty when
+ * `peopleCount` is more than 1 in that mode (see PEOPLE_COUNT_NOTE above). `base64` is raw
+ * base64 image data (no data: prefix).
+ *
+ * `mode` defaults to `"detect-people"` — the normal path for a fresh upload
+ * (src/app/add/actions.ts's addPhotoAction). Pass `"single-person"` once the owner has
+ * already tapped "this one is me" on a cropped photo (addPhotoWithPersonAction) — that
+ * mode ignores anyone else who might still be barely visible at the crop's edge instead of
+ * re-triggering the peopleCount gate, which would otherwise silently catalogue nothing at
+ * all a second time (confirmed as a real failure mode before this mode existed — a tight
+ * crop around one person can still catch a sliver of whoever was next to them).
+ *
+ * Always returns at least one entry in `garments` on success when a result would otherwise
+ * be non-empty — falls back to a single best-effort entry if the model can't confidently
+ * separate multiple garments.
+ */
+export async function tagPhoto(
+  base64: string,
+  mediaType: string,
+  mode: "detect-people" | "single-person" = "detect-people"
+): Promise<TagPhotoResult> {
   const message = await client().messages.create({
     model: "claude-sonnet-5",
     max_tokens: 2000,
@@ -204,7 +266,7 @@ export async function tagPhoto(base64: string, mediaType: string): Promise<Tagge
               data: base64,
             },
           },
-          { type: "text", text: PROMPT },
+          { type: "text", text: buildPrompt(mode) },
         ],
       },
     ],
@@ -213,9 +275,11 @@ export async function tagPhoto(base64: string, mediaType: string): Promise<Tagge
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n");
-  const items = parseJsonArrayReply(text);
-  if (items.length === 0) throw new Error("No garments found in the photo");
-  return items;
+  const result = parseTagPhotoReply(text);
+  if (result.peopleCount <= 1 && result.garments.length === 0) {
+    throw new Error("No garments found in the photo");
+  }
+  return result;
 }
 
 // Duplicate detection (PROJECT.md §5) — went through three designs before landing here,

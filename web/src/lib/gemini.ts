@@ -108,3 +108,68 @@ export async function correctGarmentImage(
 
   return firstImagePart(response);
 }
+
+// Multi-person disambiguation (PROJECT.md §5) — when tagPhoto (lib/anthropic.ts) reports
+// more than one person with visible clothing in a photo, this finds each one's approximate
+// location so the owner can tap "which one is me" instead of the photo being silently
+// mixed across people (confirmed as a real bug: a synthetic two-person test photo had both
+// people's garments catalogued together with no indication which belonged to whom) or just
+// rejected outright. This is spatial detection only — "where is each body in this one
+// photo, right now" — never identity: no face recognition, nothing persisted about what
+// any person looks like across photos. Validated empirically against a real test photo
+// before this was written: Gemini's normalized-0-1000 box convention lined up with the
+// actual pixel positions within a few percent. Claude was tried too and was directionally
+// sensible but didn't reliably follow the requested 0-1000 scale — Gemini is the
+// purpose-built tool here, matching the existing Claude-tags/Gemini-images split.
+const PEOPLE_DETECT_PROMPT =
+  `Detect every distinct person in this photo who has clothing visible on them. For each ` +
+  `one, output a JSON object with "box_2d": [ymin,xmin,ymax,xmax] normalized to 0-1000 ` +
+  `(top-left origin) tightly bounding that person's visible body, and "label": a short ` +
+  `phrase naming their most distinctive visible clothing (e.g. "red jacket") so a person ` +
+  `can recognise them from the label alone. Return ONLY a JSON array, no prose, no markdown ` +
+  `fences.`;
+
+export interface PersonBox {
+  /** [ymin, xmin, ymax, xmax], each normalized 0-1000, top-left origin. */
+  box: [number, number, number, number];
+  label: string;
+}
+
+function parsePersonBoxes(text: string): PersonBox[] {
+  const clean = text.replace(/```json|```/g, "");
+  const re = /\{\s*"box_2d"\s*:\s*\[\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*\]\s*,\s*"label"\s*:\s*"([^"]*)"\s*\}/g;
+  const seen = new Set<string>();
+  const results: PersonBox[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(clean))) {
+    const box: [number, number, number, number] = [
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+    ];
+    // The model occasionally emits a draft attempt followed by a corrected one for the same
+    // person (seen in testing) — dedupe near-identical boxes rather than showing doubles.
+    const key = box.map((n) => Math.round(n / 10) * 10).join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({ box, label: match[5] });
+  }
+  return results;
+}
+
+/** Finds every distinct person with visible clothing in a photo, with an approximate
+ * bounding box for each — used only to let the owner pick which one is them
+ * (src/app/add/actions.ts), never to identify who anyone is. */
+export async function detectPeople(base64Image: string, mimeType: string): Promise<PersonBox[]> {
+  const ai = client();
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: [{ text: PEOPLE_DETECT_PROMPT }, { inlineData: { data: base64Image, mimeType } }],
+  });
+  const text = (response.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text)
+    .filter((t): t is string => !!t)
+    .join("");
+  return parsePersonBoxes(text);
+}

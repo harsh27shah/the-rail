@@ -608,6 +608,49 @@ textarea {
   margin: 4px 0 0;
   padding-left: 18px;
 }
+
+/* "Which one is you?" — the multi-person disambiguation step in the Add flow (see
+   AddPhotosForm.tsx / addPhotoAction's comment). The frame sizes itself to the photo (the
+   img sets its own natural aspect ratio); each person's box is a real <button>, positioned
+   as a percentage of the frame from Gemini's normalized 0-1000 bounding box, so it lines up
+   regardless of how large the photo renders. */
+.person-picker-frame {
+  position: relative;
+  max-width: 420px;
+}
+.person-picker-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+}
+.person-picker-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(43, 76, 212, 0.12);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: flex-end;
+  transition: background 0.15s;
+}
+.person-picker-box:hover,
+.person-picker-box:focus-visible {
+  background: rgba(43, 76, 212, 0.28);
+}
+.person-picker-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  background: var(--accent);
+  color: #fff;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .status {
   font-family: var(--font-mono), monospace;
   font-size: 11px;

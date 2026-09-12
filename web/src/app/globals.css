@@ -590,6 +590,24 @@ textarea {
   flex: 1;
   text-align: center;
 }
+/* Google Photos import (src/components/GooglePhotosImport.tsx) — an alternative source
+   sitting right under the plain file input, not a competing primary action. */
+.add-alt-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.add-alt-source > .hint {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.google-photos-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* Post-upload summary on the Add page when a multi-photo run had partial failures — plain
    prose (not the uppercase mono .status treatment), since it lists real filenames. */
 .upload-report {

@@ -806,7 +806,51 @@ Suggested build order:
       wardrobe's stored crops for the same signature and found no other confirmed cases; the
       owner can re-upload that same photo to get the complete top/trousers/boots set now
       that the bug is fixed.
-22. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+22. 🔧 **Import from Google Photos.** Built, not yet live-tested — the OAuth consent screen
+    and the actual picking UI both live on Google's own domain, so the last mile needs the
+    owner to click through it themselves; nothing further to verify from this end until
+    then. Picks up the original ingestion brainstorm from earlier in §5's history (letting a
+    new user pull from their photo library instead of uploading one-by-one) using the
+    **Google Photos Picker API**, not the older Photos Library API — Google restricted
+    broad `photoslibrary.readonly`-style library scanning for new apps in 2025, so the
+    Picker API (the owner picks specific photos on a page Google itself hosts; the app only
+    ever sees exactly those photos) is the current, correct, and only realistically
+    available approach. Matches the project's existing stance on consent from the
+    multi-person work (item 18) — never broad access, only what's explicitly handed over.
+    - **New files**: `lib/google-photos.ts` (OAuth token exchange/refresh + the Picker API
+      calls — session create/poll/list/download), `lib/google-auth-store.ts` (token
+      persistence — a new `google_oauth_tokens` table, single-owner mode, one fixed row, no
+      `user_id`/RLS, same as `items`), three API routes (`authorize`, `callback`, plus
+      `status`/`media`/`download` for the client to poll/list/download against), a server
+      action (`add/google-photos-actions.ts`) for starting a session when already connected,
+      and a new client component (`GooglePhotosImport.tsx`) rendered directly under the
+      existing file input on `/add`.
+    - **Deliberately does not add a new ingestion path.** Once photos are picked, they're
+      downloaded server-side (the access token this needs can never reach the browser) and
+      handed to the client as ordinary `File` objects — from that point on they go through
+      the *exact same* pipeline as a locally-chosen file (multi-photo, multi-garment,
+      multi-person disambiguation, all of it), via the parent form's existing `files` state.
+    - **Where this actually adds value: desktop, not mobile.** On a phone, the existing plain
+      file input already opens the OS's own picker, which itself usually reaches Google
+      Photos/iCloud directly — so this mainly helps someone browsing from a desktop whose
+      photos live in Google Photos but not on that machine. Worth knowing so the feature's
+      value isn't overstated relative to what already worked.
+    - **OAuth setup is a real, unavoidable manual step** — a Google Cloud project (the same
+      one already used for the Gemini key works fine; OAuth credentials are a different kind
+      of credential living in the same project, not a replacement for the API key) with the
+      Photos Picker API enabled, an OAuth consent screen in Testing mode (skips Google's
+      verification review — fine for single-owner use), and a Web-application OAuth client
+      with `http://localhost:3000/api/google-photos/callback` as an authorized redirect URI.
+      `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` go in `.env.local`, same as every other key.
+    - **The new `google_oauth_tokens` table needs the owner to run the updated
+      `supabase/schema.sql` by hand** (same manual-migration convention as every table
+      before it) before any of this can actually be exercised.
+    - **Known untested edge**: `listPickedPhotos`' response parsing (the Picker API nests
+      the useful fields under `mediaFile`, unlike the older Library API's flatter shape) was
+      implemented from documentation, not a live call — there was no way to get a real access
+      token without the owner's own Google sign-in. Expect this to need a quick adjustment
+      once the owner's first real run shows the actual response shape.
+23. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

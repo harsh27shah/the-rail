@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AddPhotosForm } from "@/components/AddPhotosForm";
 
 // Each photo is its own request now (see addPhotoAction), so a function invocation only ever
@@ -14,7 +15,12 @@ export default function AddPage() {
         a photo showing more than one garment (a top and jeans, say) becomes its own entry
         per garment. You can fix anything it gets wrong afterward.
       </p>
-      <AddPhotosForm />
+      {/* Suspense boundary for GooglePhotosImport's useSearchParams() (it reads gpSession/
+          gpPickerUri/gpError coming back from the OAuth callback redirect) — Next.js
+          requires one around any client-side use of that hook. */}
+      <Suspense fallback={null}>
+        <AddPhotosForm />
+      </Suspense>
     </div>
   );
 }

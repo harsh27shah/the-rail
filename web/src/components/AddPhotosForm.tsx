@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addPhotoAction, addPhotoWithPersonAction } from "@/app/add/actions";
+import { GooglePhotosImport } from "@/components/GooglePhotosImport";
 import type { PersonBox } from "@/lib/gemini";
 
 /**
@@ -132,6 +133,19 @@ export function AddPhotosForm() {
         <p className="hint" style={{ margin: "8px 0 0" }}>
           {files.length} photo{files.length === 1 ? "" : "s"} selected.
         </p>
+      )}
+
+      {phase.kind !== "needs-selection" && (
+        <div className="add-alt-source">
+          <span className="hint">or</span>
+          <GooglePhotosImport
+            disabled={working}
+            onImported={(imported) => {
+              setFiles((prev) => [...prev, ...imported]);
+              setPhase({ kind: "idle" });
+            }}
+          />
+        </div>
       )}
 
       {phase.kind === "working" && (

@@ -64,3 +64,15 @@ create index if not exists items_duplicate_of_idx on items (duplicate_of);
 insert into storage.buckets (id, name, public)
 values ('wardrobe-images', 'wardrobe-images', true)
 on conflict (id) do nothing;
+
+-- Google Photos import (PROJECT.md §5) — the owner's own OAuth tokens, so the app can open
+-- a Google Photos Picker session on their behalf without asking them to sign in every time.
+-- Single-owner mode (see the note at the top of this file): one fixed row ('owner'), no
+-- user_id, no RLS. Revisit before a multi-user phase, same as `items`.
+create table if not exists google_oauth_tokens (
+  id text primary key default 'owner',
+  access_token text not null,
+  refresh_token text not null,
+  expires_at timestamptz not null,
+  updated_at timestamptz not null default now()
+);

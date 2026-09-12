@@ -713,6 +713,21 @@ Suggested build order:
       and returned the original photo unchanged); the working result was kept. Also kept in
       sync by hand in `scripts/backfill-garment-extraction.mjs` (same pattern as the other
       backfill scripts) so a future full backfill run gets the fix too.
+    - **A later bulk upload surfaced a fourth, distinct failure mode: the garment bleeding
+      off its own canvas edge.** The owner flagged three items from one batch as looking
+      wrong. Two (a pink knit top, a Mexico football jersey) turned out to already display
+      correctly by the time they were checked — most likely screenshotted in the few-second
+      window before that item's background extraction (`after()`) had finished, not an actual
+      bug. The third (a white football jersey) had a real defect: Gemini's own generated
+      photo showed the garment's sleeve cut off by the edge of its own canvas — not a
+      cropping or letterboxing problem this time, since `trim()`/letterboxing can't restore
+      content Gemini simply never drew. Added an explicit instruction to both
+      `extractGarmentImage` and `correctGarmentImage` ("show the ENTIRE garment fully within
+      the frame, never let any part of it extend past the edge") and re-ran the real item
+      through it — first retry came out clean and was kept, confirming the instruction helps,
+      though (consistent with the other stochastic failure modes above) a second retry on the
+      same item still produced a bad duplicate-view collage, so this is a reduction in rate,
+      not a guarantee. Kept in sync in `scripts/backfill-garment-extraction.mjs` as usual.
 21. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

@@ -63,7 +63,8 @@ export async function extractGarmentImage(
           `from one consistent angle only — never multiple copies, angles, or duplicate ` +
           `views of the same item side by side. Fill most of the frame with the garment ` +
           `itself, with only a small, even margin of background around it — not a large ` +
-          `empty canvas.`,
+          `empty canvas. Show the ENTIRE garment fully within the frame — never let any ` +
+          `part of it (a sleeve, a shoulder, a hem) extend past the edge of the photo.`,
       },
       { inlineData: { data: base64Image, mimeType } },
     ],
@@ -105,7 +106,9 @@ export async function correctGarmentImage(
           `while staying faithful to image 1. Show it as ONE single view from one ` +
           `consistent angle only — never multiple copies or duplicate views of the same ` +
           `item side by side. Fill most of the frame with the garment itself, with only a ` +
-          `small, even margin of background around it — not a large empty canvas.`,
+          `small, even margin of background around it — not a large empty canvas. Show ` +
+          `the ENTIRE garment fully within the frame — never let any part of it (a sleeve, ` +
+          `a shoulder, a hem) extend past the edge of the photo.`,
       },
       { inlineData: { data: original.base64, mimeType: original.mimeType } },
       { inlineData: { data: current.base64, mimeType: current.mimeType } },

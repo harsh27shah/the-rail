@@ -103,7 +103,8 @@ async function extractGarmentImage(base64Image, mimeType, description) {
           `from one consistent angle only — never multiple copies, angles, or duplicate ` +
           `views of the same item side by side. Fill most of the frame with the garment ` +
           `itself, with only a small, even margin of background around it — not a large ` +
-          `empty canvas.`,
+          `empty canvas. Show the ENTIRE garment fully within the frame — never let any ` +
+          `part of it (a sleeve, a shoulder, a hem) extend past the edge of the photo.`,
       },
       { inlineData: { data: base64Image, mimeType } },
     ],

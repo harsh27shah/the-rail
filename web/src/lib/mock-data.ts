@@ -25,7 +25,6 @@ const RAW: [string, Category, string, string[], Pattern, string, number, Season[
   ["Navy blazer", "Outerwear", "navy", ["#14213D"], "solid", "wool", 5, ["spring", "autumn", "winter"], "Dresses up chinos or jeans instantly."],
   ["White sneakers", "Footwear", "white", ["#F2F2F2"], "solid", "leather", 2, ["spring", "summer"], "Clean minimal silhouette, easy to match."],
   ["Chelsea boots", "Footwear", "brown", ["#5C3A21"], "solid", "leather", 3, ["autumn", "winter"], "Dresses down a suit, dresses up jeans."],
-  ["Leather belt", "Accessories", "brown", ["#5C3A21"], "solid", "leather", 3, ["spring", "summer", "autumn", "winter"], "Matches the boots, worn most days."],
 ];
 
 export const MOCK_ITEMS: Item[] = RAW.map(

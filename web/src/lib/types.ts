@@ -4,7 +4,13 @@
 // layer); Suiting doesn't fit this app's casual/smart-casual positioning; Activewear isn't
 // the target use case. A blazer/jumper/gym tee still gets catalogued — it's just classified
 // by what it actually is (Tops/Bottoms/Outerwear), not given its own bucket.
-export const CATEGORIES = ["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"] as const;
+//
+// Accessories was dropped too, later and differently from the other three — not folded
+// into an existing category (nothing else fits a belt or a watch), just descoped entirely
+// for this MVP. It didn't pull its weight: one item, no natural pairing "slot", nothing
+// meaningful to say about coverage for it. The tagger now skips accessories outright rather
+// than cataloguing them. See PROJECT.md §5.
+export const CATEGORIES = ["Tops", "Bottoms", "Outerwear", "Footwear"] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 

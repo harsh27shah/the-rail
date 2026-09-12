@@ -12,9 +12,9 @@ import type { Category } from "./types";
  * Deliberately only defined for categories with a clear, arguable minimum right now:
  * Tops and Bottoms are structurally required for any outfit at all, so five each is a
  * reasonable floor for real day-to-day rotation. Outerwear is contextual (climate-dependent,
- * per the owner) so its floor is lower and softer. Footwear and Accessories don't have an
- * agreed minimum yet — leave them unbadged rather than guess at a number. Revisit once
- * there's a clearer read on what "enough footwear" or "enough accessories" means.
+ * per the owner) so its floor is lower and softer. Footwear doesn't have an agreed minimum
+ * yet — leave it unbadged rather than guess at a number. Revisit once there's a clearer
+ * read on what "enough footwear" means.
  */
 export const CATEGORY_COVERAGE: Partial<
   Record<Category, { min: number; message: (needed: number) => string }>

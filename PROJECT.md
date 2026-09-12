@@ -549,12 +549,27 @@ Suggested build order:
       "fixed" because it's a real reminder that this feature is a nudge to check, not a
       ground-truth judge of the owner's own wardrobe.
 14. ✅ **Pairing pills upgraded from text to photo thumbnails.** Live — each pairing
-    suggestion on the hover overlay (`ItemCard.tsx`) is now a small 32×32 crop of that
+    suggestion on the hover overlay (`ItemCard.tsx`) is now a small (44×44) crop of that
     item's own isolated photo (`.pair-pill-img`) instead of its name. This was the §3
     "planned upgrade" gated on garment extraction actually existing — it does now, so a pill
     shows just the clean cropped garment rather than a whole photo of someone wearing it.
     Falls back to the old text pill for the rare item with no photo yet.
-15. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+15. ✅ **Accessories descoped from this MVP.** `CATEGORIES` is now Tops/Bottoms/Outerwear/
+    Footwear only — Accessories dropped, not folded into another category like Knitwear/
+    Suiting/Activewear were (§5 item 9), since nothing else fits a belt or a watch. It
+    wasn't pulling its weight: one item, no natural pairing "slot" (`pairings.ts` special-
+    cased it as always-compatible), nothing meaningful yet to say about coverage for it.
+    The tagger now skips accessories outright — belts, jewellery, watches, bags — even if
+    one is the clear subject of a photo, rather than cataloguing them.
+    - **One pre-existing item is now an orphaned category.** "Brown Leather Belt" is still
+      in the database with `category = "Accessories"`, a value no longer in the active
+      list. Deliberately left untouched rather than silently deleted or recategorised —
+      that's the owner's call, not a good one to make automatically. It still shows under
+      "All" and in search, just without a dedicated filter chip. One real consequence worth
+      knowing: opening its edit page will show the category dropdown defaulted to "Tops"
+      (the first option, since "Accessories" no longer matches any of them) — saving that
+      page without deliberately picking a category would silently reclassify it.
+16. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

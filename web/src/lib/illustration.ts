@@ -55,12 +55,6 @@ export function garmentIllustration(
         <rect x="80" y="372" width="235" height="20" rx="8" fill="#DEDBD1" stroke="${INK}" stroke-width="2"/>
         <polygon points="${poly([[90, 375], [95, 340], [120, 320], [160, 305], [210, 298], [260, 300], [285, 315], [300, 340], [305, 375]])}" fill="${c1}" stroke="${INK}" stroke-width="2"/>`;
     }
-    if (category === "Accessories") {
-      return `
-        <rect x="50" y="270" width="300" height="36" fill="${c1}" stroke="${INK}" stroke-width="2"/>
-        <rect x="172" y="256" width="56" height="64" rx="4" fill="${CARDBG}" stroke="${INK}" stroke-width="4"/>
-        ${[258, 278, 298, 318].map((x) => `<circle cx="${x}" cy="288" r="3" fill="${INK}" opacity="0.5"/>`).join("")}`;
-    }
     if (category === "Outerwear") {
       const outer = [[270, 165], [235, 145], [165, 145], [130, 165], [75, 195], [95, 285], [135, 240], [140, 460], [260, 460], [265, 240], [305, 285], [325, 195]];
       const cutout = [[200, 150], [170, 260], [230, 260]];

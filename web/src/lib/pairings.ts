@@ -10,7 +10,7 @@ import type { Item } from "./types";
  * later without touching any UI code (see PROJECT.md §2, "not decided yet").
  */
 
-type Slot = "top" | "bottom" | "layer" | "foot" | "acc";
+type Slot = "top" | "bottom" | "layer" | "foot";
 
 function slotOf(category: Item["category"]): Slot {
   switch (category) {
@@ -22,18 +22,12 @@ function slotOf(category: Item["category"]): Slot {
       return "layer";
     case "Footwear":
       return "foot";
-    case "Accessories":
-      return "acc";
   }
 }
 
-/** Two items can share an outfit unless they'd occupy the same "slot" (e.g. two tops) —
- * accessories are the exception, since stacking a belt and a watch is normal. */
+/** Two items can share an outfit unless they'd occupy the same "slot" (e.g. two tops). */
 function complementary(a: Item, b: Item): boolean {
-  const slotA = slotOf(a.category);
-  const slotB = slotOf(b.category);
-  if (slotA === "acc" || slotB === "acc") return true;
-  return slotA !== slotB;
+  return slotOf(a.category) !== slotOf(b.category);
 }
 
 function isLoudPattern(pattern: Item["pattern"]): boolean {

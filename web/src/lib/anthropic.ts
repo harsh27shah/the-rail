@@ -55,10 +55,10 @@ const PALETTE_NOTE =
   `an orange-and-black check with a few thin yellow lines is "orange, black", not "orange, ` +
   `black, yellow").`;
 
-// Categories were deliberately reduced to Tops/Bottoms/Outerwear/Footwear/Accessories (see
-// PROJECT.md §5) — there's no separate bucket for knitwear (a fabric, not a layering role),
-// suiting (out of scope — this app is positioned for casual/smart-casual, not black-tie or
-// office suits), or activewear (out of scope — not a gym-log app). Every garment still gets
+// Categories were deliberately reduced to Tops/Bottoms/Outerwear/Footwear (see PROJECT.md
+// §5) — there's no separate bucket for knitwear (a fabric, not a layering role), suiting
+// (out of scope — this app is positioned for casual/smart-casual, not black-tie or office
+// suits), or activewear (out of scope — not a gym-log app). Every garment still gets
 // catalogued; it's just classified by what it actually is.
 const CATEGORY_NOTE =
   `For "category", choose only from the schema's fixed list — there is no separate ` +
@@ -90,10 +90,10 @@ const PROMPT =
   `sometimes also a distinct third layer such as a jacket or cardigan. Identify every ` +
   `separately-catalogable main garment visible (tops, bottoms, outerwear, footwear) and ` +
   `catalogue each one individually and specifically — do not merge them into a single ` +
-  `entry. Skip minor accessories (jewellery, watches, bags) unless one is clearly the main ` +
-  `subject of the photo. If genuinely only one distinct garment is visible, return an ` +
-  `array containing just that one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ` +
-  `${CATEGORY_NOTE} ${OCCLUSION_NOTE}\n\n` +
+  `entry. Skip accessories entirely — jewellery, watches, bags, belts — even if one is ` +
+  `clearly the main subject of the photo; this app doesn't catalogue those for now. If ` +
+  `genuinely only one distinct garment is visible, return an array containing just that ` +
+  `one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ${CATEGORY_NOTE} ${OCCLUSION_NOTE}\n\n` +
   `Return ONLY a JSON array, no prose and no markdown fences — one object per garment, ` +
   `each using this schema:\n${ITEM_SCHEMA}`;
 

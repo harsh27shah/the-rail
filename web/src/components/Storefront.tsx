@@ -59,6 +59,41 @@ export function Storefront({ items }: { items: Item[] }) {
     return () => document.removeEventListener("click", handleOutsideClick);
   }, [gapPopover]);
 
+  // Builds the hover/tap trigger for a category's coverage gap (see lib/coverage.ts) —
+  // shared between the filter chips and the section headers below, since both need the
+  // exact same open/close behaviour, just a different visual wrapper class. Its own click
+  // always stopPropagation()s, so it never reaches the outside-click handler above —
+  // clicking a *different* trigger while one popover is open is handled entirely by these
+  // handlers, not by that document listener.
+  function gapTrigger(category: Category, gap: NonNullable<ReturnType<typeof coverageGap>>, wrapperClass: string) {
+    return (
+      <span
+        role="button"
+        tabIndex={0}
+        aria-label={gap.message}
+        className={wrapperClass}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (gapPopover?.category === category) setGapPopover(null);
+          else openGapPopover(category, e.currentTarget);
+        }}
+        onMouseEnter={(e) => openGapPopover(category, e.currentTarget)}
+        onMouseLeave={() => setGapPopover((cur) => (cur?.category === category ? null : cur))}
+        onFocus={(e) => openGapPopover(category, e.currentTarget)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            if (gapPopover?.category === category) setGapPopover(null);
+            else openGapPopover(category, e.currentTarget);
+          }
+        }}
+      >
+        <span className="chip-alert-dot" aria-hidden="true" />
+      </span>
+    );
+  }
+
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -118,6 +153,11 @@ export function Storefront({ items }: { items: Item[] }) {
   // has actually landed on that category — the moment they're looking right at how few
   // pieces are there, not something they have to notice a small dot to discover.
   const activeGap = filter !== "All" ? coverageGap(filter as Category, counts[filter] ?? 0) : null;
+
+  // "All" with nothing searched gets the curated per-category shelves; a genuinely empty
+  // wardrobe keeps the single big first-run empty state instead of several small "no X yet"
+  // rows with no unifying CTA.
+  const sectioned = filter === "All" && !query && items.length > 0;
 
   return (
     <>
@@ -180,32 +220,7 @@ export function Storefront({ items }: { items: Item[] }) {
               className={`chip${filter === c ? " active" : ""}`}
               onClick={() => setFilter(c)}
             >
-              {gap && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label={gap.message}
-                  className="chip-alert"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (gapPopover?.category === c) setGapPopover(null);
-                    else openGapPopover(c as Category, e.currentTarget);
-                  }}
-                  onMouseEnter={(e) => openGapPopover(c as Category, e.currentTarget)}
-                  onMouseLeave={() => setGapPopover((cur) => (cur?.category === c ? null : cur))}
-                  onFocus={(e) => openGapPopover(c as Category, e.currentTarget)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (gapPopover?.category === c) setGapPopover(null);
-                      else openGapPopover(c as Category, e.currentTarget);
-                    }
-                  }}
-                >
-                  <span className="chip-alert-dot" aria-hidden="true" />
-                </span>
-              )}
+              {gap && gapTrigger(c as Category, gap, "chip-alert")}
               {c}
               {c !== "All" ? ` · ${counts[c] ?? 0}` : ""}
             </button>
@@ -240,34 +255,75 @@ export function Storefront({ items }: { items: Item[] }) {
 
       {activeGap && <div className="coverage-banner">{activeGap.message}</div>}
 
-      <div className="grid">
-        {visible.length === 0 ? (
-          <div className="empty-state">
-            <h2>{items.length ? "Nothing matches" : "The rail is empty"}</h2>
-            <p>
-              {items.length
-                ? "Try a different category or search."
-                : "Add your first piece and it gets read, tagged, and hung here."}
-            </p>
-            {!items.length && (
-              <Link href="/add" className="btn">
-                + Add a piece
-              </Link>
-            )}
-          </div>
-        ) : (
-          visible.map((it) => (
-            <ItemCard
-              key={it.id}
-              item={it}
-              pairings={pairingsFor(it, items)}
-              selectMode={selectMode}
-              selected={selected.has(it.id)}
-              onToggleSelect={toggleSelect}
-            />
-          ))
-        )}
-      </div>
+      {/* "All" with no search gets the curated per-category shelves — a browse view of the
+          whole wardrobe's shape. Picking a specific category, or typing a search, drops back
+          to the flat grid: that's still the right view for "show me every one of these" and
+          for bulk-select, and a sectioned browse doesn't make sense for "find this one thing". */}
+      {sectioned ? (
+        <div className="category-sections">
+          {CATEGORIES.filter((c) => counts[c] || coverageGap(c, 0)).map((c) => {
+            const gap = coverageGap(c, counts[c] ?? 0);
+            const categoryItems = items.filter((it) => it.category === c);
+            return (
+              <div className="category-section" key={c}>
+                <div className="category-section-header">
+                  <span className="category-section-title">
+                    {c} <span className="count">· {counts[c] ?? 0}</span>
+                  </span>
+                  {gap && gapTrigger(c, gap, "section-gap-trigger")}
+                </div>
+                {categoryItems.length === 0 ? (
+                  <p className="category-row-empty">
+                    No {c.toLowerCase()} yet. <Link href="/add">Add one</Link>.
+                  </p>
+                ) : (
+                  <div className="category-row">
+                    {categoryItems.map((it) => (
+                      <ItemCard
+                        key={it.id}
+                        item={it}
+                        pairings={pairingsFor(it, items)}
+                        selectMode={selectMode}
+                        selected={selected.has(it.id)}
+                        onToggleSelect={toggleSelect}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid">
+          {visible.length === 0 ? (
+            <div className="empty-state">
+              <h2>{items.length ? "Nothing matches" : "The rail is empty"}</h2>
+              <p>
+                {items.length
+                  ? "Try a different category or search."
+                  : "Add your first piece and it gets read, tagged, and hung here."}
+              </p>
+              {!items.length && (
+                <Link href="/add" className="btn">
+                  + Add a piece
+                </Link>
+              )}
+            </div>
+          ) : (
+            visible.map((it) => (
+              <ItemCard
+                key={it.id}
+                item={it}
+                pairings={pairingsFor(it, items)}
+                selectMode={selectMode}
+                selected={selected.has(it.id)}
+                onToggleSelect={toggleSelect}
+              />
+            ))
+          )}
+        </div>
+      )}
     </>
   );
 }

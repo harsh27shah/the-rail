@@ -266,6 +266,63 @@ a {
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
 }
 
+/* ---------- category shelves ("All", no search — see Storefront.tsx) ---------- */
+.category-sections {
+  padding-bottom: 60px;
+}
+.category-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  margin: 30px 0 14px;
+}
+.category-section:first-child .category-section-header {
+  margin-top: 22px;
+}
+.category-section-title {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.category-section-title .count {
+  font-weight: 400;
+  color: var(--muted);
+}
+/* Same trigger as .chip-alert (see its comment), just inline next to a heading instead of
+   pinned to a chip's corner. */
+.section-gap-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+.category-row {
+  display: flex;
+  gap: 18px;
+  padding: 0 24px 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.category-row > .card {
+  flex: 0 0 190px;
+}
+.category-row-empty {
+  margin: 0;
+  padding: 0 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.category-row-empty a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .card {
   position: relative;
   cursor: pointer;

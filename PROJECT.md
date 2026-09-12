@@ -569,7 +569,21 @@ Suggested build order:
       knowing: opening its edit page will show the category dropdown defaulted to "Tops"
       (the first option, since "Accessories" no longer matches any of them) — saving that
       page without deliberately picking a category would silently reclassify it.
-16. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+17. ✅ **"All" reorganised into per-category shelves.** Live — the default "All" view
+    (`Storefront.tsx`) is no longer one flat interleaved grid. It's now one horizontal-
+    scroll row per category, in order (Tops, Bottoms, Outerwear, Footwear), each with its
+    own header showing the category name and count. Picking a specific category chip, or
+    typing a search, still drops back to the flat grid exactly as before — that's still the
+    right view for "show me every one of these" and for bulk-select; a sectioned browse view
+    doesn't make sense for "find this one thing". A genuinely empty wardrobe (no items at
+    all) keeps the single big first-run empty state rather than several small "no X yet"
+    rows with no unifying CTA.
+    - The coverage-gap red dot (§5 item 8) now also appears on each shelf's header, not just
+      the filter chip — same trigger, same popover, just a second place it can appear from.
+      Considered dropping it from the chip once the shelf carries it, but they're both
+      visible at the same time on "All" anyway, so left both rather than adding a special
+      case for no real benefit.
+18. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

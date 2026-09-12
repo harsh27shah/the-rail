@@ -806,11 +806,11 @@ Suggested build order:
       wardrobe's stored crops for the same signature and found no other confirmed cases; the
       owner can re-upload that same photo to get the complete top/trousers/boots set now
       that the bug is fixed.
-22. 🔧 **Import from Google Photos.** Built, not yet live-tested — the OAuth consent screen
-    and the actual picking UI both live on Google's own domain, so the last mile needs the
-    owner to click through it themselves; nothing further to verify from this end until
-    then. Picks up the original ingestion brainstorm from earlier in §5's history (letting a
-    new user pull from their photo library instead of uploading one-by-one) using the
+22. ✅ **Import from Google Photos.** Live — took several rounds of the owner's own live
+    testing to get there, since the OAuth consent screen and the picking UI both live on
+    Google's own domain and couldn't be exercised from this end at all beforehand. Picks up
+    the original ingestion brainstorm from earlier in §5's history (letting a new user pull
+    from their photo library instead of uploading one-by-one) using the
     **Google Photos Picker API**, not the older Photos Library API — Google restricted
     broad `photoslibrary.readonly`-style library scanning for new apps in 2025, so the
     Picker API (the owner picks specific photos on a page Google itself hosts; the app only
@@ -845,11 +845,39 @@ Suggested build order:
     - **The new `google_oauth_tokens` table needs the owner to run the updated
       `supabase/schema.sql` by hand** (same manual-migration convention as every table
       before it) before any of this can actually be exercised.
-    - **Known untested edge**: `listPickedPhotos`' response parsing (the Picker API nests
-      the useful fields under `mediaFile`, unlike the older Library API's flatter shape) was
-      implemented from documentation, not a live call — there was no way to get a real access
-      token without the owner's own Google sign-in. Expect this to need a quick adjustment
-      once the owner's first real run shows the actual response shape.
+    - **`listPickedPhotos`' response parsing worked on the first real run** — written from
+      documentation with no way to test it against a live response beforehand (see below),
+      it turned out to match the Picker API's actual shape exactly; no adjustment needed.
+    - **Getting there needed three real rounds of config fixes, none of them code bugs**:
+      a `redirect_uri_mismatch` traced to the deployed site's actual domain being
+      `the-rail-wheat.vercel.app`, not the `rail-wheat.vercel.app` visible in Safari's
+      truncated address bar (misread by the assistant, not the owner); an `access_denied`
+      from the OAuth consent screen still being in Testing mode without the owner's own
+      account added as a test user; and Google Cloud Console itself refusing to add that
+      exact addition ("ineligible … account"), which turned out to be an unrelated console
+      quirk — project owners are implicitly allowed regardless of the test-user list, so
+      the fix was simply to retry, not to resolve that dialog.
+    - **Bug found and fixed: the picker tab silently failed to open on iOS Safari.** The
+      first working version called `window.open` right after `await`ing the session-creation
+      call — Safari (iOS especially) only allows `window.open` when it happens perfectly
+      synchronously inside a genuine tap, and that intervening `await` was enough delay for
+      it to silently block the call as an unrequested popup, with nothing to catch. Fixed by
+      never calling `window.open` anywhere except directly inside a real `onClick` — added
+      an explicit "ready" phase (`GooglePhotosImport.tsx`) so creating the session and
+      opening the tab are two separate taps, the second with zero delay before `window.open`
+      fires. The same fix covers resuming after the OAuth callback redirect, which had the
+      same problem in a worse form (no live user gesture at all at that point). Also now
+      checks `window.open`'s return value and surfaces a clear error if a browser still
+      blocks it, instead of silently doing nothing.
+    - **A real desktop import surfaced an unrelated, pre-existing gap: no retry on a failed
+      tagging call.** One imported photo came back as a blank "Untitled piece." Re-running
+      the exact same tagging call against the exact same photo moments later succeeded
+      cleanly — nothing wrong with the photo, just a one-off transient failure (a bad
+      network blip, a truncated response) that had nowhere to go but straight to the blank
+      fallback. `tagPhoto` (`lib/anthropic.ts`) now retries once before giving up, which this
+      generalizes to every upload path, not just Google Photos imports. The real item this
+      surfaced on was fixed directly with the successful retry's result rather than asking
+      the owner to redo the upload.
 23. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

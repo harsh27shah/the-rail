@@ -272,41 +272,57 @@ function parseTagPhotoReply(text: string): TagPhotoResult {
  * Always returns at least one entry in `garments` on success when a result would otherwise
  * be non-empty — falls back to a single best-effort entry if the model can't confidently
  * separate multiple garments.
+ *
+ * Retries once on any failure (a bad network blip, a malformed/truncated response, the
+ * model momentarily writing prose instead of JSON) before giving up — found necessary in
+ * real use: a photo that failed here isn't retried anywhere else, so callers
+ * (src/app/add/actions.ts) fall straight back to cataloguing a blank "Untitled piece"
+ * rather than trying again, even though a retry very often just works. Confirmed directly —
+ * re-ran a real failed photo through this exact call moments later and it succeeded cleanly
+ * the second time, with nothing wrong with the photo itself.
  */
 export async function tagPhoto(
   base64: string,
   mediaType: string,
   mode: "detect-people" | "single-person" = "detect-people"
 ): Promise<TagPhotoResult> {
-  const message = await client().messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: [
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const message = await client().messages.create({
+        model: "claude-sonnet-5",
+        max_tokens: 2000,
+        messages: [
           {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-              data: base64,
-            },
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+                  data: base64,
+                },
+              },
+              { type: "text", text: buildPrompt(mode) },
+            ],
           },
-          { type: "text", text: buildPrompt(mode) },
         ],
-      },
-    ],
-  });
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-  const result = parseTagPhotoReply(text);
-  if (result.peopleCount <= 1 && result.garments.length === 0) {
-    throw new Error("No garments found in the photo");
+      });
+      const text = message.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n");
+      const result = parseTagPhotoReply(text);
+      if (result.peopleCount <= 1 && result.garments.length === 0) {
+        throw new Error("No garments found in the photo");
+      }
+      return result;
+    } catch (e) {
+      lastError = e;
+    }
   }
-  return result;
+  throw lastError;
 }
 
 // Duplicate detection (PROJECT.md §5) — went through three designs before landing here,

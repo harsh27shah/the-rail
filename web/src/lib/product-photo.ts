@@ -8,8 +8,99 @@ import sharp, { type Sharp } from "sharp";
 const CARD_RATIO = 3 / 4;
 
 /**
- * Samples the trimmed photo's own background colour (averaging a few points inset from each
- * corner, so one noisy pixel right at the trim boundary can't skew it) instead of using a
+ * Finds the tight bounding box of actual garment content in a generated product photo, by
+ * comparing every pixel (on a small downscaled raster, for speed) against the photo's own
+ * corner colour and keeping whichever rows/columns have enough pixels that differ from it.
+ *
+ * Replaced an earlier version of this file that used `sharp`'s built-in `trim()` for this.
+ * Found in real use to be unreliable in both directions: on one real item it left the
+ * garment occupying well under 70% of the frame (compared to ~90%+ for a normally-composed
+ * item) while `trim()` reported nothing left to trim; escalating `trim()`'s threshold to
+ * compensate helped that image but changed non-monotonically photo to photo — a threshold
+ * that fixed one item's excess margin either did nothing or overshot on another, so there
+ * was no single safe fixed (or even escalating) threshold. Comparing every pixel's actual
+ * distance from the photo's own background colour, rather than trusting `trim()`'s internal
+ * flood-fill heuristic, gave a tight, correct crop across every real case tried — including
+ * near-white garments (a white sneaker, a white sweatshirt) against a similarly pale
+ * background, which is the case most likely to be over-trimmed by an aggressive threshold.
+ */
+async function findContentBBox(
+  buffer: Buffer,
+  width: number,
+  height: number
+): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+  const RASTER = 300; // downscaled raster used for the pixel scan; scaled back up after
+  const scale = RASTER / Math.max(width, height);
+  const rasterWidth = Math.max(1, Math.round(width * scale));
+  const rasterHeight = Math.max(1, Math.round(height * scale));
+
+  const { data, info } = await sharp(buffer)
+    .resize(rasterWidth, rasterHeight, { fit: "fill" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = info.channels;
+
+  function pixelAt(x: number, y: number): [number, number, number] {
+    const i = (y * rasterWidth + x) * channels;
+    return [data[i], data[i + 1], data[i + 2]];
+  }
+  const corners = [
+    pixelAt(0, 0),
+    pixelAt(rasterWidth - 1, 0),
+    pixelAt(0, rasterHeight - 1),
+    pixelAt(rasterWidth - 1, rasterHeight - 1),
+  ];
+  const bg = [0, 1, 2].map((c) => Math.round(corners.reduce((sum, p) => sum + p[c], 0) / corners.length));
+
+  const DIST_THRESHOLD = 28; // per-pixel RGB distance to count as "different from background"
+  const LINE_FRACTION = 0.015; // a row/column counts as "content" once >1.5% of it qualifies
+
+  function distFromBg(p: [number, number, number]) {
+    return Math.sqrt((p[0] - bg[0]) ** 2 + (p[1] - bg[1]) ** 2 + (p[2] - bg[2]) ** 2);
+  }
+
+  const colHits = new Array(rasterWidth).fill(0);
+  const rowHits = new Array(rasterHeight).fill(0);
+  for (let y = 0; y < rasterHeight; y++) {
+    for (let x = 0; x < rasterWidth; x++) {
+      if (distFromBg(pixelAt(x, y)) > DIST_THRESHOLD) {
+        colHits[x]++;
+        rowHits[y]++;
+      }
+    }
+  }
+
+  let left = 0;
+  let right = rasterWidth - 1;
+  let top = 0;
+  let bottom = rasterHeight - 1;
+  while (left < rasterWidth && colHits[left] / rasterHeight < LINE_FRACTION) left++;
+  while (right > left && colHits[right] / rasterHeight < LINE_FRACTION) right--;
+  while (top < rasterHeight && rowHits[top] / rasterWidth < LINE_FRACTION) top++;
+  while (bottom > top && rowHits[bottom] / rasterWidth < LINE_FRACTION) bottom--;
+
+  if (left >= right || top >= bottom) return null; // no content found — leave untouched
+
+  // Scale the raster bbox back up to full resolution, with a small margin so the crop
+  // doesn't hug the garment's edge exactly.
+  const marginFraction = 0.04;
+  const fullLeft = left / scale;
+  const fullRight = (right + 1) / scale;
+  const fullTop = top / scale;
+  const fullBottom = (bottom + 1) / scale;
+  const marginX = (fullRight - fullLeft) * marginFraction;
+  const marginY = (fullBottom - fullTop) * marginFraction;
+  return {
+    left: Math.max(0, Math.round(fullLeft - marginX)),
+    top: Math.max(0, Math.round(fullTop - marginY)),
+    right: Math.min(width, Math.round(fullRight + marginX)),
+    bottom: Math.min(height, Math.round(fullBottom + marginY)),
+  };
+}
+
+/**
+ * Samples the cropped photo's own background colour (averaging a few points inset from each
+ * corner, so one noisy pixel right at the crop boundary can't skew it) instead of using a
  * fixed pad colour. Found necessary in real use: Gemini's "plain, light neutral studio
  * background" isn't one consistent colour across generations — a warm cream in one photo, a
  * cooler grey in another — so a single fixed pad colour created a visibly different-toned
@@ -59,11 +150,19 @@ export async function normalizeProductPhoto(
 ): Promise<{ data: string; mimeType: string }> {
   const buffer = Buffer.from(base64, "base64");
 
+  const sourceMeta = await sharp(buffer).metadata();
   let working = buffer;
-  try {
-    working = await sharp(buffer).trim({ threshold: 12 }).toBuffer();
-  } catch {
-    // No uniform border to trim, or trim otherwise failed — proceed untrimmed.
+  if (sourceMeta.width && sourceMeta.height) {
+    try {
+      const bbox = await findContentBBox(buffer, sourceMeta.width, sourceMeta.height);
+      if (bbox) {
+        working = await sharp(buffer)
+          .extract({ left: bbox.left, top: bbox.top, width: bbox.right - bbox.left, height: bbox.bottom - bbox.top })
+          .toBuffer();
+      }
+    } catch {
+      // Bounding-box detection failed for some reason — proceed with the untouched image.
+    }
   }
 
   const meta = await sharp(working).metadata();

@@ -37,6 +37,71 @@ const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 // can leave a perfectly fine garment looking half cut-off in the UI.
 const CARD_RATIO = 3 / 4;
 
+// Replaced sharp's built-in trim() here — found unreliable in real use (left one item's
+// garment occupying well under 70% of frame while trim() found nothing to trim; escalating
+// its threshold to compensate helped that image but overshot or under-shot others). Compares
+// every pixel's distance from the photo's own sampled corner colour instead — see
+// product-photo.ts's fuller comment.
+async function findContentBBox(buffer, width, height) {
+  const RASTER = 300;
+  const scale = RASTER / Math.max(width, height);
+  const rasterWidth = Math.max(1, Math.round(width * scale));
+  const rasterHeight = Math.max(1, Math.round(height * scale));
+  const { data, info } = await sharp(buffer)
+    .resize(rasterWidth, rasterHeight, { fit: "fill" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = info.channels;
+  function pixelAt(x, y) {
+    const i = (y * rasterWidth + x) * channels;
+    return [data[i], data[i + 1], data[i + 2]];
+  }
+  const corners = [
+    pixelAt(0, 0),
+    pixelAt(rasterWidth - 1, 0),
+    pixelAt(0, rasterHeight - 1),
+    pixelAt(rasterWidth - 1, rasterHeight - 1),
+  ];
+  const bg = [0, 1, 2].map((c) => Math.round(corners.reduce((sum, p) => sum + p[c], 0) / corners.length));
+  const DIST_THRESHOLD = 28;
+  const LINE_FRACTION = 0.015;
+  function distFromBg(p) {
+    return Math.sqrt((p[0] - bg[0]) ** 2 + (p[1] - bg[1]) ** 2 + (p[2] - bg[2]) ** 2);
+  }
+  const colHits = new Array(rasterWidth).fill(0);
+  const rowHits = new Array(rasterHeight).fill(0);
+  for (let y = 0; y < rasterHeight; y++) {
+    for (let x = 0; x < rasterWidth; x++) {
+      if (distFromBg(pixelAt(x, y)) > DIST_THRESHOLD) {
+        colHits[x]++;
+        rowHits[y]++;
+      }
+    }
+  }
+  let left = 0;
+  let right = rasterWidth - 1;
+  let top = 0;
+  let bottom = rasterHeight - 1;
+  while (left < rasterWidth && colHits[left] / rasterHeight < LINE_FRACTION) left++;
+  while (right > left && colHits[right] / rasterHeight < LINE_FRACTION) right--;
+  while (top < rasterHeight && rowHits[top] / rasterWidth < LINE_FRACTION) top++;
+  while (bottom > top && rowHits[bottom] / rasterWidth < LINE_FRACTION) bottom--;
+  if (left >= right || top >= bottom) return null;
+  const marginFraction = 0.04;
+  const fullLeft = left / scale;
+  const fullRight = (right + 1) / scale;
+  const fullTop = top / scale;
+  const fullBottom = (bottom + 1) / scale;
+  const marginX = (fullRight - fullLeft) * marginFraction;
+  const marginY = (fullBottom - fullTop) * marginFraction;
+  return {
+    left: Math.max(0, Math.round(fullLeft - marginX)),
+    top: Math.max(0, Math.round(fullTop - marginY)),
+    right: Math.min(width, Math.round(fullRight + marginX)),
+    bottom: Math.min(height, Math.round(fullBottom + marginY)),
+  };
+}
+
 async function sampleBackgroundColor(buffer, width, height) {
   const inset = Math.max(1, Math.round(Math.min(width, height) * 0.01));
   const points = [
@@ -59,11 +124,19 @@ async function sampleBackgroundColor(buffer, width, height) {
 
 async function normalizeProductPhoto(base64, mimeType) {
   const buffer = Buffer.from(base64, "base64");
+  const sourceMeta = await sharp(buffer).metadata();
   let working = buffer;
-  try {
-    working = await sharp(buffer).trim({ threshold: 12 }).toBuffer();
-  } catch {
-    // No uniform border to trim — proceed untrimmed.
+  if (sourceMeta.width && sourceMeta.height) {
+    try {
+      const bbox = await findContentBBox(buffer, sourceMeta.width, sourceMeta.height);
+      if (bbox) {
+        working = await sharp(buffer)
+          .extract({ left: bbox.left, top: bbox.top, width: bbox.right - bbox.left, height: bbox.bottom - bbox.top })
+          .toBuffer();
+      }
+    } catch {
+      // Bounding-box detection failed — proceed with the untouched image.
+    }
   }
   const meta = await sharp(working).metadata();
   const width = meta.width ?? 0;

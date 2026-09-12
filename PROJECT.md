@@ -715,19 +715,40 @@ Suggested build order:
       backfill scripts) so a future full backfill run gets the fix too.
     - **A later bulk upload surfaced a fourth, distinct failure mode: the garment bleeding
       off its own canvas edge.** The owner flagged three items from one batch as looking
-      wrong. Two (a pink knit top, a Mexico football jersey) turned out to already display
-      correctly by the time they were checked — most likely screenshotted in the few-second
-      window before that item's background extraction (`after()`) had finished, not an actual
-      bug. The third (a white football jersey) had a real defect: Gemini's own generated
-      photo showed the garment's sleeve cut off by the edge of its own canvas — not a
-      cropping or letterboxing problem this time, since `trim()`/letterboxing can't restore
-      content Gemini simply never drew. Added an explicit instruction to both
-      `extractGarmentImage` and `correctGarmentImage` ("show the ENTIRE garment fully within
-      the frame, never let any part of it extend past the edge") and re-ran the real item
-      through it — first retry came out clean and was kept, confirming the instruction helps,
-      though (consistent with the other stochastic failure modes above) a second retry on the
-      same item still produced a bad duplicate-view collage, so this is a reduction in rate,
-      not a guarantee. Kept in sync in `scripts/backfill-garment-extraction.mjs` as usual.
+      wrong. One (a white football jersey) had a real defect: Gemini's own generated photo
+      showed the garment's sleeve cut off by the edge of its own canvas — not a cropping or
+      letterboxing problem this time, since trimming/letterboxing can't restore content
+      Gemini simply never drew. Added an explicit instruction to both `extractGarmentImage`
+      and `correctGarmentImage` ("show the ENTIRE garment fully within the frame, never let
+      any part of it extend past the edge") and re-ran the real item through it — first
+      retry came out clean and was kept, confirming the instruction helps, though (consistent
+      with the other stochastic failure modes above) a second retry on the same item still
+      produced a bad duplicate-view collage, so this is a reduction in rate, not a guarantee.
+      A second flagged item (a Mexico jersey) turned out to already display correctly by the
+      time it was checked. **The third (a pink knit top) was initially — and wrongly — also
+      called a non-issue "timing artifact."** The owner pushed back, correctly: it really was
+      occupying only ~68% of its frame height versus ~93%+ for a normally-composed item in
+      the same row, a real and measurable defect that self-correcting timing couldn't explain
+      away. That follow-up is its own bullet below, since it uncovered a deeper problem with
+      the trimming step itself, not just this one item.
+    - **`sharp`'s `trim()` turned out to be an unreliable way to find a generated photo's
+      real content bounds, in both directions.** Confirmed on the pink top: `trim()` at its
+      default threshold found nothing to trim, even though the garment plainly occupied well
+      under 70% of the frame. Escalating the threshold to compensate fixed that one image but
+      changed non-monotonically photo to photo — a threshold that helped one item's excess
+      margin did nothing, or overshot into the garment itself, on another; there was no single
+      safe fixed (or escalating) value. **Replaced `trim()` entirely** with
+      `findContentBBox` (`src/lib/product-photo.ts`): downscales the photo, compares every
+      pixel's actual colour distance from the photo's own sampled corner colour, and keeps
+      the tightest row/column bounds where enough of a line differs from that background to
+      count as content — deterministic and grounded in the photo's own colours rather than a
+      threshold guessed in advance. Verified directly against six real cases before shipping,
+      including the two riskiest ones for over-trimming (a white sneaker, a white sweatshirt,
+      both pale against a similarly pale background) — none were clipped, while the
+      pink top, the white jersey, and a Mexico jersey all tightened correctly. Re-applied to
+      all three flagged items (plus the earlier white-jersey fix) and confirmed in the
+      browser: all four now fill their card at a consistent, correct proportion. Kept in sync
+      in `scripts/backfill-garment-extraction.mjs` as usual.
 21. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

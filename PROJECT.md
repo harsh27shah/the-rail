@@ -749,6 +749,30 @@ Suggested build order:
       all three flagged items (plus the earlier white-jersey fix) and confirmed in the
       browser: all four now fill their card at a consistent, correct proportion. Kept in sync
       in `scripts/backfill-garment-extraction.mjs` as usual.
+    - **The owner pushed back a second time — correctly, again.** Two follow-up reports:
+      (1) two jerseys still had a sleeve visibly cut off by their own canvas edge, worse
+      than the earlier "fixed" white jersey; (2) every item catalogued that day looked
+      noticeably larger/more filled-in than anything catalogued on prior days. Both were
+      real, and both had the same root cause: the Germany and Mexico jerseys' *original*
+      Gemini generations predated the "show the ENTIRE garment, never let it extend past
+      the edge" prompt fix (added ~30 minutes after they were extracted) — every fix applied
+      to them since had only ever re-processed those same already-bled pixels
+      (crop/letterbox/background-sampling), which can tighten a photo but can't restore
+      content Gemini never drew in the first place. Fixed by actually re-running extraction
+      (not just post-processing) for both jerseys plus one more retry on the white jersey
+      under the current prompt — 2-3 attempts each were needed (the same duplicate-view-
+      collage failure mode from item 20 showed up again in some attempts), and the clean
+      result from each was kept.
+    - **Then backfilled the whole wardrobe**, since the underlying inconsistency wasn't
+      about any one item — it was that `normalizeProductPhoto`'s tightening logic (and its
+      `findContentBBox` replacement for `trim()`) didn't exist yet when most of the wardrobe
+      was first catalogued, so those items kept their original, looser framing while
+      anything touched since read as visibly bigger by comparison. `scripts/backfill-photo-
+      normalization.mjs` re-tightens every existing item's *current* photo the same way —
+      deliberately without calling Gemini again, so it carries none of the stochastic-
+      generation risk a fresh extraction would. Ran it against the real wardrobe: 25 of 33
+      items were re-tightened, 8 were already fine, 0 failed. Confirmed in the browser that
+      every category now reads at one consistent scale.
 21. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 

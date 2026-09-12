@@ -630,7 +630,39 @@ Suggested build order:
       correct box, and confirming via a direct database query that exactly the right
       garments were created, each pointing at a freshly-stored crop, with nothing from the
       other person anywhere in the result.
-19. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+19. ✅ **"Too occluded to catalogue" gate, and owner-driven manual duplicate marking.** Live
+    — two fixes prompted by the same real photo: a hotpot-dinner selfie run through the
+    multi-person flow (item 18), cropped down to one person whose trousers were almost
+    entirely hidden below a table edge. The tagger still confidently invented a material,
+    pattern, and formality for them from a patch of plain black fabric — and that invented
+    item then got auto-flagged as a duplicate of an unrelated pair of black trousers, purely
+    because "both are black" was the only thing either photo actually showed.
+    - **Stricter gate before a garment gets catalogued at all.** `TOO_OCCLUDED_NOTE`
+      (`src/lib/anthropic.ts`) now runs before the existing `OCCLUSION_NOTE`: if nothing
+      distinctive about a garment is visible — no cut, hem, hardware, or pattern, just a
+      rough colour — it's left out of the response entirely rather than catalogued with
+      guessed specifics. This is deliberately a *stricter, separate* bar from the existing
+      "occluded" flag, not a replacement for it: a garment that's genuinely identifiable
+      despite a hidden part (a striped tee with its sleeves covered by an open jacket, say)
+      should still be catalogued and flagged for review, same as before — only a garment
+      with *nothing* distinctive visible gets dropped. Verified directly against the real
+      photo that motivated this (the trousers are now correctly excluded, the shirt above
+      them still catalogued normally) and against a synthetic case built to check the gate
+      doesn't over-trigger (a striped t-shirt with its sleeves hidden under an open hoodie —
+      still catalogued, correctly flagged as occluded, not excluded).
+    - **Owner-driven manual duplicate marking**, because automatic detection was never going
+      to be foolproof (this same photo is proof: an occluded item gives it too little to
+      compare, and see item 13's whole saga on how hard reliable auto-matching already is).
+      A **"Mark as duplicate"** button on the item detail page (`MarkDuplicate.tsx`) opens a
+      searchable picker over the rest of the wardrobe (same-category items surfaced first);
+      picking one calls `markManualDuplicate` (`lib/items.ts`), which sets the exact same
+      `duplicate_of`/`duplicate_note`/`duplicate_confidence` columns the automatic check
+      does. A manual flag is then indistinguishable from an automatic one — it shows up in
+      the same `/duplicates` review queue, with the same keep-both/remove-either actions,
+      nothing removed until the owner says so. Verified end-to-end in the browser: marked
+      the real trousers item as a duplicate of an existing pair, confirmed it appeared
+      correctly in the review queue, then dismissed it to leave the wardrobe as found.
+20. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

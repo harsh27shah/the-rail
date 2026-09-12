@@ -71,11 +71,38 @@ const CATEGORY_NOTE =
   `pieces (athletic tee, leggings, running shorts) are catalogued the same as any other ` +
   `garment — "Tops" or "Bottoms" by ordinary function, not a separate category.`;
 
+// Found in real use: a photo cropped down to one person at a hotpot table left almost
+// nothing of their trousers visible above the table edge — no cut, hem, or texture, just a
+// patch of dark fabric — and the tagger still confidently invented a material, pattern, and
+// formality for it, which then got flagged as a false duplicate of an unrelated pair of
+// trousers (the "match" was really just "both are black"). The OCCLUSION_NOTE mechanism
+// below is the right tool when a garment is still identifiable despite some hidden part (see
+// its own comment); it's the wrong tool when NOTHING distinctive is visible at all. This is
+// a harder gate that runs first: below this bar, the garment is left out of the response
+// entirely rather than catalogued with invented specifics. Deliberately stricter than
+// OCCLUSION_NOTE, not a replacement for it — most partially-hidden garments (a tee under an
+// open jacket, a cropped sleeve) still have a visible pattern/cut/neckline and should still
+// be catalogued and flagged, just not invented from nothing.
+const TOO_OCCLUDED_NOTE =
+  `Before including a garment, check whether at least one defining detail of it is actually ` +
+  `visible — its cut, hem, silhouette, closures, hardware, or pattern — not just a rough ` +
+  `colour and category. If a garment is so hidden (behind furniture, another person, mostly ` +
+  `out of frame, under a table) that all you could honestly say is something like "dark ` +
+  `trousers" with nothing more specific, do NOT include it in "garments" at all — leave it ` +
+  `out entirely rather than inventing a plausible-sounding material, pattern, or fit for it. ` +
+  `This is a stricter bar than "occluded" below: "occluded" is for a garment you CAN still ` +
+  `identify specifically (you can see its cut, fabric, or pattern) but with some part hidden ` +
+  `(a sleeve length, a hem) that you have to infer — that garment should still be ` +
+  `catalogued, just flagged. Only leave a garment out completely when nothing distinctive ` +
+  `about it is visible at all.`;
+
 // When a garment is only partly visible (a t-shirt mostly hidden under an overshirt, a
-// cropped photo, a folded item), the model fills in the unseen parts — and gets them wrong
-// in ways the owner would catch instantly (long sleeves on what's actually a short-sleeve
-// tee). Have it flag that so the UI can nudge the owner to verify, rather than presenting a
-// guess as fact.
+// cropped photo, a folded item) but still has enough visible to identify specifically, the
+// model fills in the unseen parts — and gets them wrong in ways the owner would catch
+// instantly (long sleeves on what's actually a short-sleeve tee). Have it flag that so the
+// UI can nudge the owner to verify, rather than presenting a guess as fact. See
+// TOO_OCCLUDED_NOTE above for the stricter bar that runs first and excludes a garment
+// entirely when even this level of inference isn't possible.
 const OCCLUSION_NOTE =
   `Set "occluded" to true when a meaningful part of the garment is NOT actually visible in ` +
   `the photo — hidden behind another layer, cropped out of frame, or folded/bunched so its ` +
@@ -128,7 +155,7 @@ function buildPrompt(mode: "detect-people" | "single-person"): string {
     `even if one is clearly the main subject of the photo; this app doesn't catalogue ` +
     `those for now. If genuinely only one distinct garment is visible, return an array ` +
     `containing just that one object. ${BRITISH_ENGLISH_NOTE} ${PALETTE_NOTE} ` +
-    `${CATEGORY_NOTE} ${OCCLUSION_NOTE} ${peopleHandling}\n\n` +
+    `${CATEGORY_NOTE} ${TOO_OCCLUDED_NOTE} ${OCCLUSION_NOTE} ${peopleHandling}\n\n` +
     `Return ONLY a JSON object, no prose and no markdown fences, shaped exactly like:\n${schema}`
   );
 }

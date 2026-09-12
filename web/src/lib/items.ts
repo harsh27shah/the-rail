@@ -541,6 +541,33 @@ export async function resolveDuplicate(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Owner-initiated duplicate flag — the counterpart to the automatic AI check above.
+ * Detection will never be foolproof (occluded photos give it too little to compare, and
+ * two independent AI-generated shots of the same real garment can render differently
+ * enough to miss each other, see PROJECT.md §5) — the owner can always link two items
+ * directly from the item detail page instead of waiting on a match that might never come.
+ * Reuses the exact same `duplicate_of`/`duplicate_note`/`duplicate_confidence` columns and
+ * the same /duplicates review queue as the automatic path — once made, a manual flag is
+ * indistinguishable from an automatic one except for its note text, and goes through the
+ * same keep-both/remove-either review rather than deleting anything immediately.
+ */
+export async function markManualDuplicate(itemId: string, duplicateOfId: string): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+  if (itemId === duplicateOfId) throw new Error("An item can't be a duplicate of itself");
+
+  const { error } = await admin
+    .from("items")
+    .update({
+      duplicate_of: duplicateOfId,
+      duplicate_note: "Marked as a duplicate by you.",
+      duplicate_confidence: 1,
+    })
+    .eq("id", itemId);
+  if (error) throw new Error(error.message);
+}
+
 /** Bulk delete — P0 in the PRD, so bad ingestions can be cleared quickly. */
 export async function deleteItems(ids: string[]): Promise<void> {
   const admin = getSupabaseAdmin();

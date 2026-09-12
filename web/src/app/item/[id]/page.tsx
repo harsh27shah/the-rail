@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getItem, getItems } from "@/lib/items";
 import { pairingsFor } from "@/lib/pairings";
 import { ImageCorrection } from "@/components/ImageCorrection";
+import { MarkDuplicate } from "@/components/MarkDuplicate";
 
 export default async function ItemDetailPage({
   params,
@@ -38,6 +39,12 @@ export default async function ItemDetailPage({
               {item.reviewNote ? ` (${item.reviewNote})` : ""}. Worth a look — edit anything that&rsquo;s off.
             </p>
           )}
+          {item.duplicateOfId && (
+            <p className="review-note">
+              This looks like it might be the same piece as something already on the rail.{" "}
+              <Link href="/duplicates">Review it</Link>.
+            </p>
+          )}
           <div className="detail-facts">
             <div>
               Formality
@@ -70,6 +77,19 @@ export default async function ItemDetailPage({
               itemId={item.id}
               originalImageUrl={item.originalImageUrl}
               canUndo={item.canUndo}
+            />
+            <MarkDuplicate
+              itemId={item.id}
+              category={item.category}
+              candidates={allItems
+                .filter((it) => it.id !== item.id)
+                .map((it) => ({
+                  id: it.id,
+                  name: it.name,
+                  category: it.category,
+                  color: it.color,
+                  imageUrl: it.imageUrl,
+                }))}
             />
           </div>
         </div>

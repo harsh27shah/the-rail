@@ -662,7 +662,49 @@ Suggested build order:
       nothing removed until the owner says so. Verified end-to-end in the browser: marked
       the real trousers item as a duplicate of an existing pair, confirmed it appeared
       correctly in the review queue, then dismissed it to leave the wardrobe as found.
-20. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+20. ✅ **Extracted product photos normalised to the card's aspect ratio.** Live — found from
+    the same hotpot/bridge photos as item 19: the three garments extracted from the multi-
+    person crop displayed badly on the storefront — the chinos looked cropped at both the
+    top and bottom, and the trainers' thumbnail showed the shoe split across a gap with
+    blank space above and below. Traced to a real, measurable cause: every card image
+    displays at a fixed 3:4 with `object-fit: cover` (§3), but Gemini's isolated product
+    shots don't reliably land on any particular aspect ratio or fill their own canvas —
+    confirmed directly (the real chinos' generated photo measured 0.32:1, a narrow tall
+    strip nothing like a normal product photo) — so `cover` was centre-cropping away
+    whatever didn't fit, cutting a perfectly fine photo in half.
+    - **Fix: `normalizeProductPhoto` (`src/lib/product-photo.ts`)** runs on every photo
+      `extractGarmentImage`/`correctGarmentImage` (`lib/gemini.ts`) return, before it's ever
+      stored. It trims the excess plain background down to the actual garment (`sharp`'s
+      `trim()`), then letterboxes the result to the app's own 3:4 with a background matching
+      `--card` — so by the time a photo reaches storage, its own ratio already matches the
+      display box and `cover` never needs to crop anything away. Verified directly: the
+      real chinos and trainers photos, re-run through the fixed pipeline, now display fully
+      and correctly on the storefront (screenshotted side by side with the rest of their
+      category rows).
+    - **Considered and rejected: widening the multi-person crop itself** (item 18) to a more
+      normal aspect ratio, so Gemini would have a less extreme canvas to work with in the
+      first place. Rejected because widening would extend the crop sideways — directly
+      toward wherever the other detected person is standing — reintroducing more of them
+      into the stored photo, which is exactly the exposure item 18 already accepted as a
+      necessary trade-off and shouldn't be made worse for a display-layer fix. Fixing this
+      at the extraction/post-processing layer instead leaves the crop itself untouched.
+    - **Also tightened the extraction prompt** (both `extractGarmentImage` and
+      `correctGarmentImage`) to ask for one single consistent view and a frame mostly filled
+      by the garment — tested across several trials and it measurably reduces (but, being a
+      generative model, doesn't fully eliminate) a separate stochastic failure mode: Gemini
+      occasionally producing a collage of duplicate views, or even leaving the original
+      person in frame, instead of one clean product shot. An automated "is this a clean
+      single product shot?" verification-and-retry step was tried and abandoned — asking
+      Gemini to judge its own output this way answered "no" even on the clean, correct
+      results, so it couldn't reliably distinguish good from bad. The existing "Not quite
+      right?" correction flow remains the safety net for the residual failure rate.
+    - Applied directly to the three real items that surfaced this (the polo, chinos, and
+      trainers from item 18's photo) by re-running them through the corrected pipeline —
+      the trainers needed a second attempt (the first attempt's generation failed outright
+      and returned the original photo unchanged); the working result was kept. Also kept in
+      sync by hand in `scripts/backfill-garment-extraction.mjs` (same pattern as the other
+      backfill scripts) so a future full backfill run gets the fix too.
+21. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

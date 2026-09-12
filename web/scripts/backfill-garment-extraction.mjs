@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Modality } from "@google/genai";
+import sharp from "sharp";
 
 const envPath = path.resolve(import.meta.dirname, "..", ".env.local");
 const env = Object.fromEntries(
@@ -29,6 +30,36 @@ const MODEL = "gemini-3.1-flash-image";
 const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
+// Kept in sync by hand with src/lib/product-photo.ts's normalizeProductPhoto — this script
+// can't import a .ts module directly. See that file's comment for why this exists: Gemini's
+// isolated product shots don't reliably fill their own canvas, and every card on the
+// storefront displays at a fixed 3:4 with `object-fit: cover`, so a mismatched canvas shape
+// can leave a perfectly fine garment looking half cut-off in the UI.
+const CARD_RATIO = 3 / 4;
+const PAD_BACKGROUND = { r: 247, g: 246, b: 242 };
+
+async function normalizeProductPhoto(base64, mimeType) {
+  const buffer = Buffer.from(base64, "base64");
+  let working = buffer;
+  try {
+    working = await sharp(buffer).trim({ threshold: 12 }).toBuffer();
+  } catch {
+    // No uniform border to trim — proceed untrimmed.
+  }
+  const meta = await sharp(working).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  if (!width || !height) return { data: base64, mimeType };
+  const ratio = width / height;
+  const targetWidth = ratio > CARD_RATIO ? width : Math.round(height * CARD_RATIO);
+  const targetHeight = ratio > CARD_RATIO ? Math.round(width / CARD_RATIO) : height;
+  const out = await sharp(working)
+    .resize(targetWidth, targetHeight, { fit: "contain", background: PAD_BACKGROUND })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+  return { data: out.toString("base64"), mimeType: "image/jpeg" };
+}
+
 async function extractGarmentImage(base64Image, mimeType, description) {
   const response = await ai.models.generateContent({
     model: MODEL,
@@ -40,7 +71,11 @@ async function extractGarmentImage(base64Image, mimeType, description) {
           `Style: flat lay or ghost-mannequin look on a plain, light neutral studio ` +
           `background, centred, well-lit, no shadows of a body — like a minimalist ` +
           `online clothing retailer's catalogue photo. Keep the garment's true colour, ` +
-          `pattern, and shape faithful to the original photo.`,
+          `pattern, and shape faithful to the original photo. Show it as ONE single view ` +
+          `from one consistent angle only — never multiple copies, angles, or duplicate ` +
+          `views of the same item side by side. Fill most of the frame with the garment ` +
+          `itself, with only a small, even margin of background around it — not a large ` +
+          `empty canvas.`,
       },
       { inlineData: { data: base64Image, mimeType } },
     ],
@@ -49,7 +84,7 @@ async function extractGarmentImage(base64Image, mimeType, description) {
   const parts = response.candidates?.[0]?.content?.parts ?? [];
   for (const part of parts) {
     if (part.inlineData?.data) {
-      return { data: part.inlineData.data, mimeType: part.inlineData.mimeType ?? "image/png" };
+      return normalizeProductPhoto(part.inlineData.data, part.inlineData.mimeType ?? "image/png");
     }
   }
   return null;

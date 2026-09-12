@@ -1,5 +1,6 @@
 import "server-only";
 import { GoogleGenAI, Modality } from "@google/genai";
+import { normalizeProductPhoto } from "./product-photo";
 
 /**
  * Garment extraction — takes a photo (which may show a person wearing the item, a messy
@@ -58,7 +59,11 @@ export async function extractGarmentImage(
           `Style: flat lay or ghost-mannequin look on a plain, light neutral studio ` +
           `background, centred, well-lit, no shadows of a body — like a minimalist ` +
           `online clothing retailer's catalogue photo. Keep the garment's true colour, ` +
-          `pattern, and shape faithful to the original photo.`,
+          `pattern, and shape faithful to the original photo. Show it as ONE single view ` +
+          `from one consistent angle only — never multiple copies, angles, or duplicate ` +
+          `views of the same item side by side. Fill most of the frame with the garment ` +
+          `itself, with only a small, even margin of background around it — not a large ` +
+          `empty canvas.`,
       },
       { inlineData: { data: base64Image, mimeType } },
     ],
@@ -67,7 +72,8 @@ export async function extractGarmentImage(
     },
   });
 
-  return firstImagePart(response);
+  const image = firstImagePart(response);
+  return image ? normalizeProductPhoto(image.data, image.mimeType) : null;
 }
 
 /**
@@ -96,7 +102,10 @@ export async function correctGarmentImage(
           `"${feedback}". Look at image 1 again to check the true appearance, and produce ` +
           `a corrected isolated product photo (same style: flat lay / ghost-mannequin, ` +
           `plain neutral studio background, no person) that fixes the described problem ` +
-          `while staying faithful to image 1.`,
+          `while staying faithful to image 1. Show it as ONE single view from one ` +
+          `consistent angle only — never multiple copies or duplicate views of the same ` +
+          `item side by side. Fill most of the frame with the garment itself, with only a ` +
+          `small, even margin of background around it — not a large empty canvas.`,
       },
       { inlineData: { data: original.base64, mimeType: original.mimeType } },
       { inlineData: { data: current.base64, mimeType: current.mimeType } },
@@ -106,7 +115,8 @@ export async function correctGarmentImage(
     },
   });
 
-  return firstImagePart(response);
+  const image = firstImagePart(response);
+  return image ? normalizeProductPhoto(image.data, image.mimeType) : null;
 }
 
 // Multi-person disambiguation (PROJECT.md §5) — when tagPhoto (lib/anthropic.ts) reports

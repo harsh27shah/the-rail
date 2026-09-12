@@ -773,7 +773,40 @@ Suggested build order:
       generation risk a fresh extraction would. Ran it against the real wardrobe: 25 of 33
       items were re-tightened, 8 were already fine, 0 failed. Confirmed in the browser that
       every category now reads at one consistent scale.
-21. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
+21. ✅ **Fixed: the multi-person crop silently cut off everything below the chest on some
+    real photos.** The owner uploaded a photo (green jersey, grey trousers, brown boots),
+    tapped himself in the "which one is you?" picker, and only the jersey got catalogued —
+    trousers and boots, both plainly visible in the photo, never showed up. Root cause: a
+    phone photo taken in portrait is very often stored as raw *landscape* pixel data plus an
+    EXIF orientation tag telling a viewer to rotate it for display — `sharp`'s own
+    `metadata()`/`extract()` (used in `cropToPersonBox`, `src/lib/crop.ts`) read that raw,
+    unrotated pixel grid unless explicitly told otherwise. `detectPeople`'s bounding box
+    (Gemini) is computed against the photo the way a person actually views it — the
+    *oriented* image — so applying its percentages to the raw grid silently cropped the
+    wrong region: a tall sliver containing only the head and torso, with the box's real
+    target (a full standing person) never actually inside it.
+    - **Verified the exact mechanism before fixing it**, not just patched and hoped: built a
+      test photo with a real EXIF rotation tag (simulating exactly how a phone encodes a
+      portrait shot), ran the real `detectPeople` call against it, then applied the *current*
+      crop math and a *fixed* version (with `sharp().rotate()` — bakes the EXIF rotation into
+      the pixel data and clears the tag — run first) side by side. The unfixed version
+      produced a sideways crop of just the head and shoulders; the fixed version produced a
+      correctly oriented, full-length crop showing the trousers and boots intact.
+    - **Fix**: `cropToPersonBox` now runs `sharp(buffer).rotate()` before reading any
+      dimensions or extracting, so the box-percentage math and the final pixel crop both
+      operate on the same, correctly oriented image `detectPeople` actually analysed.
+    - Verified end-to-end through the real Add flow (not just the isolated crop function):
+      uploaded the same simulated EXIF-rotated photo, tapped the correct person in the
+      picker, and confirmed via the database that all three real garments — the top, the
+      trousers, and the boots — were catalogued this time, not just the top. Test items and
+      files cleaned up after.
+    - **The real item that surfaced this (the owner's green jersey) can't be retroactively
+      repaired** — the full two-person original that produced its crop was never stored, by
+      design (§5 item 18), so there's nothing left to re-crop. Scanned the rest of the
+      wardrobe's stored crops for the same signature and found no other confirmed cases; the
+      owner can re-upload that same photo to get the complete top/trousers/boots set now
+      that the bug is fixed.
+22. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
     owner's own wardrobe — see decision log below.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the

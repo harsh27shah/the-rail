@@ -219,10 +219,22 @@ export function GooglePhotosImport({
   function openPicker(sessionId: string, pickerUri: string) {
     // The one and only place this file calls window.open — always directly inside a real
     // onClick, so Safari's popup blocker never has a reason to step in (see top comment).
-    const opened = window.open(pickerUri, "_blank", "noopener,noreferrer");
+    //
+    // Deliberately NOT passing "noopener"/"noreferrer" as window features: per the HTML spec,
+    // a window opened with noopener *always* returns null — even when it opened perfectly —
+    // so the blocked-popup check below would report a failure on every successful open and
+    // bail out before polling ever started (found in real use: Google Photos opened, the app
+    // said "blocked", and the picked photos never arrived). Without it, null reliably means
+    // "actually blocked". The opener link is cut manually afterwards instead.
+    const opened = window.open(pickerUri, "_blank");
     if (!opened) {
       setPhase({ kind: "error", message: "Your browser blocked that tab from opening — try again" });
       return;
+    }
+    try {
+      opened.opener = null;
+    } catch {
+      // Cross-origin by now in some browsers — nothing to sever, which is fine.
     }
     startPolling(sessionId);
   }

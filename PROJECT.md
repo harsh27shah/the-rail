@@ -879,21 +879,29 @@ Suggested build order:
       surfaced on was fixed directly with the successful retry's result rather than asking
       the owner to redo the upload.
     - **Reported after accounts shipped: picking photos in Google Photos succeeded, but
-      nothing appeared back in the app — and no error either.** No import had created an item
-      that day, and the owner's Google connection had saved correctly minutes earlier, so
-      sign-in and consent weren't the problem; the failure is somewhere between "Google says
-      done" and "photos reach the form". **Root cause not yet established** — production logs
-      aren't reachable from the dev environment, and the earlier imports (all under 3MB) don't
-      support the one concrete suspect, Vercel's ~4.5MB cap on function responses (the
-      download proxy buffers each photo). What *was* clearly wrong, and is fixed: the import
-      had two paths that finished empty and said nothing (Google listing zero photos went
-      quietly back to idle; a photo whose download failed was silently skipped, so if every
-      download failed it still "succeeded" with an empty list). Every failure now reports
-      what happened, including Google's own response for a refused download. Also guarded the
-      status poll against overlapping checks (two ticks both seeing "done" would start the
-      import twice, the second colliding with the first deleting the session), and the
-      routes now log failures server-side (host only, never tokens or full URLs). The next
-      failed attempt should say why.
+      nothing appeared back in the app.** Two causes, one of them mine twice over.
+      **The real blocker:** `openPicker` called `window.open(url, "_blank",
+      "noopener,noreferrer")` and treated a `null` return as "the browser blocked the popup"
+      (that check was added in the iOS Safari fix above). Per the HTML spec a window opened
+      with `noopener` *always* returns `null`, even when it opens perfectly — so every
+      successful open was reported as blocked, and the code returned before `startPolling`
+      ever ran. The picker tab opened, the app said "blocked", and nothing was watching for the
+      photos. **That also means the earlier iOS diagnosis was wrong:** the "blocked" error seen
+      on the iPhone after finishing in Google Photos was this same bug, not a second tap or a
+      reloaded tab as first guessed. Fixed by opening without `noopener` (so `null` really
+      does mean blocked) and cutting the opener link manually afterwards. Evidence for the
+      cause is the owner's screenshot — the tab opened *and* the error showed, which a truly
+      blocked popup can't do — plus the spec; it could not be reproduced in the dev
+      environment's embedded browser, which blocks all new windows, so the owner's retry is
+      the real confirmation. One loose end: an import from Chrome worked about 15 minutes after
+      the faulty check deployed, which doesn't fit unless that tab was still running older code.
+    - **Also fixed on the way, since they made this impossible to diagnose:** the import had two
+      paths that finished empty and said nothing (Google listing zero photos went quietly back
+      to idle; a photo whose download failed was silently skipped, so if every download failed
+      it still "succeeded" with an empty list). Every failure now reports what happened,
+      including Google's own response for a refused download. The status poll is guarded
+      against overlapping checks (two ticks both seeing "done" would start the import twice),
+      and the routes log failures server-side (host only, never tokens or full URLs).
 23. ✅ **Accounts.** Live — the trigger the decision log below set ("before inviting other
     people to use it") arrived when the owner wanted a friend to dogfood the app with their
     own clothes. Chosen over the quick alternative of a second, separate deployment because

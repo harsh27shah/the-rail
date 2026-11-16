@@ -892,8 +892,8 @@ Suggested build order:
       does mean blocked) and cutting the opener link manually afterwards. Evidence for the
       cause is the owner's screenshot — the tab opened *and* the error showed, which a truly
       blocked popup can't do — plus the spec; it could not be reproduced in the dev
-      environment's embedded browser, which blocks all new windows, so the owner's retry is
-      the real confirmation. One loose end: an import from Chrome worked about 15 minutes after
+      environment's embedded browser, which blocks all new windows. **Confirmed fixed:** the owner
+      retried on the deployed site after the fix and the import worked. One loose end: an import from Chrome worked about 15 minutes after
       the faulty check deployed, which doesn't fit unless that tab was still running older code.
     - **Also fixed on the way, since they made this impossible to diagnose:** the import had two
       paths that finished empty and said nothing (Google listing zero photos went quietly back

@@ -938,10 +938,9 @@ Suggested build order:
       `scripts/assign-existing-items.mjs` claimed all 45 existing items for the owner (none
       left unowned). Optional follow-up once confident:
       `alter table items alter column user_id set not null`.
-    - **Not exercised from this end:** actually clicking an emailed link — that needs the
-      owner's inbox. Everything around it (the session it produces, the proxy, the pages, the
-      data) was tested with a session minted directly; the email-click path is the owner's
-      first-login check.
+    - **The emailed-link path was the one thing not testable from this end** (it needs the
+      owner's inbox) — everything around it was tested with a session minted directly. The
+      owner then signed in with a real emailed link on the deployed site: confirmed working.
     - `scripts/backfill-duplicates.mjs` now only compares items belonging to the same user.
       The other backfill scripts act on every row regardless of owner — fine as owner tools,
       worth revisiting if one ever needs to run against a single user.

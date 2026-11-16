@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
   try {
     const accessToken = await getValidAccessToken(user.id);
     const photos = await listPickedPhotos(accessToken, sessionId);
+    console.log(`[google-photos] session picked ${photos.length} photo(s)`);
     void deletePickerSession(accessToken, sessionId);
     return NextResponse.json({
       photos: photos.map((p) => ({ id: p.id, filename: p.filename, mimeType: p.mimeType, baseUrl: p.baseUrl })),
     });
   } catch (e) {
+    console.error("[google-photos] listing picked photos failed:", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Couldn't list the picked photos" },
       { status: 500 }

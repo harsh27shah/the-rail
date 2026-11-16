@@ -22,6 +22,14 @@ export async function GET(request: NextRequest) {
     const bytes = await downloadPhoto(accessToken, baseUrl);
     return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": mimeType } });
   } catch (e) {
+    // Host only — the full URL is a (temporary) capability and doesn't belong in logs.
+    let host = "unparseable";
+    try {
+      host = new URL(baseUrl).hostname;
+    } catch {
+      // leave as-is
+    }
+    console.error(`[google-photos] download failed (host: ${host}):`, e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Couldn't download that photo" },
       { status: 500 }

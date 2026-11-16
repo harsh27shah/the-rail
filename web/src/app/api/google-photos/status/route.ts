@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const done = await getPickerSessionStatus(accessToken, sessionId);
     return NextResponse.json({ done });
   } catch (e) {
+    console.error("[google-photos] status check failed:", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Couldn't check the picking session" },
       { status: 500 }

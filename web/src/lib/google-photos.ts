@@ -224,7 +224,9 @@ export async function downloadPhoto(accessToken: string, baseUrl: string): Promi
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
-    throw new Error(`Couldn't download a picked photo: ${response.status}`);
+    // Google's own explanation (expired URL, wrong token, quota…) is the useful part.
+    const detail = (await response.text().catch(() => "")).slice(0, 160).replace(/\s+/g, " ").trim();
+    throw new Error(`Google refused the download (${response.status})${detail ? `: ${detail}` : ""}`);
   }
   return Buffer.from(await response.arrayBuffer());
 }

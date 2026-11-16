@@ -70,24 +70,62 @@ export function GooglePhotosImport({
 
         const photos = json.photos as { filename: string; mimeType: string; baseUrl: string }[];
         if (photos.length === 0) {
-          setPhase({ kind: "idle" });
+          // Never a silent return to idle — "I picked photos and nothing happened" with no
+          // explanation is the one outcome that gives the owner nothing to act on.
+          setPhase({
+            kind: "error",
+            message: "Google said you were done, but no photos came through. Pick again, and tap Done in Google Photos.",
+          });
           return;
         }
 
         setPhase({ kind: "importing", done: 0, total: photos.length });
         const files: File[] = [];
+        const failures: string[] = [];
         for (let i = 0; i < photos.length; i++) {
           const p = photos[i];
-          const params = new URLSearchParams({ baseUrl: p.baseUrl, mimeType: p.mimeType });
-          const dl = await fetch(`/api/google-photos/download?${params.toString()}`);
-          if (!dl.ok) continue; // best-effort — one bad photo shouldn't lose the rest
-          const blob = await dl.blob();
-          files.push(new File([blob], p.filename, { type: p.mimeType }));
+          try {
+            const params = new URLSearchParams({ baseUrl: p.baseUrl, mimeType: p.mimeType });
+            const dl = await fetch(`/api/google-photos/download?${params.toString()}`);
+            if (!dl.ok) {
+              // One bad photo shouldn't lose the rest — but it has to be *reported*. This used
+              // to just `continue`, so if every download failed the import still "succeeded"
+              // with an empty list and said nothing.
+              let reason = `HTTP ${dl.status}`;
+              try {
+                const body = await dl.json();
+                if (body?.error) reason = body.error;
+              } catch {
+                // not JSON (e.g. a platform error page) — the status is all there is
+              }
+              failures.push(`${p.filename}: ${reason}`);
+            } else {
+              const blob = await dl.blob();
+              files.push(new File([blob], p.filename, { type: p.mimeType }));
+            }
+          } catch (e) {
+            failures.push(`${p.filename}: ${e instanceof Error ? e.message : "download failed"}`);
+          }
           setPhase({ kind: "importing", done: i + 1, total: photos.length });
         }
 
+        if (files.length === 0) {
+          setPhase({
+            kind: "error",
+            message: `Couldn't download ${photos.length === 1 ? "that photo" : `any of the ${photos.length} photos`} — ${failures[0]}`,
+          });
+          return;
+        }
+
         onImported(files);
-        setPhase({ kind: "idle" });
+        if (failures.length > 0) {
+          setPhase({
+            kind: "error",
+            message: `Added ${files.length} of ${photos.length} — ${failures.length} couldn't be downloaded (${failures[0]})`,
+          });
+        } else {
+          setPhase({ kind: "idle" });
+        }
       } catch (e) {
         setPhase({ kind: "error", message: e instanceof Error ? e.message : "Couldn't import those photos" });
       }
@@ -100,12 +138,15 @@ export function GooglePhotosImport({
       setPhase({ kind: "waiting", sessionId });
       pollDeadline.current = Date.now() + POLL_TIMEOUT_MS;
 
+      let checking = false;
       pollHandle.current = setInterval(async () => {
+        if (checking) return;
         if (Date.now() > pollDeadline.current) {
           stopPolling();
           setPhase({ kind: "error", message: "Timed out waiting — reopen and try again when you're ready to pick." });
           return;
         }
+        checking = true;
         try {
           const res = await fetch(`/api/google-photos/status?sessionId=${encodeURIComponent(sessionId)}`);
           const json = await res.json();
@@ -117,6 +158,8 @@ export function GooglePhotosImport({
         } catch (e) {
           stopPolling();
           setPhase({ kind: "error", message: e instanceof Error ? e.message : "Something went wrong" });
+        } finally {
+          checking = false;
         }
       }, POLL_INTERVAL_MS);
     },

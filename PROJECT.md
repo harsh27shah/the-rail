@@ -878,6 +878,22 @@ Suggested build order:
       generalizes to every upload path, not just Google Photos imports. The real item this
       surfaced on was fixed directly with the successful retry's result rather than asking
       the owner to redo the upload.
+    - **Reported after accounts shipped: picking photos in Google Photos succeeded, but
+      nothing appeared back in the app — and no error either.** No import had created an item
+      that day, and the owner's Google connection had saved correctly minutes earlier, so
+      sign-in and consent weren't the problem; the failure is somewhere between "Google says
+      done" and "photos reach the form". **Root cause not yet established** — production logs
+      aren't reachable from the dev environment, and the earlier imports (all under 3MB) don't
+      support the one concrete suspect, Vercel's ~4.5MB cap on function responses (the
+      download proxy buffers each photo). What *was* clearly wrong, and is fixed: the import
+      had two paths that finished empty and said nothing (Google listing zero photos went
+      quietly back to idle; a photo whose download failed was silently skipped, so if every
+      download failed it still "succeeded" with an empty list). Every failure now reports
+      what happened, including Google's own response for a refused download. Also guarded the
+      status poll against overlapping checks (two ticks both seeing "done" would start the
+      import twice, the second colliding with the first deleting the session), and the
+      routes now log failures server-side (host only, never tokens or full URLs). The next
+      failed attempt should say why.
 23. ✅ **Accounts.** Live — the trigger the decision log below set ("before inviting other
     people to use it") arrived when the owner wanted a friend to dogfood the app with their
     own clothes. Chosen over the quick alternative of a second, separate deployment because

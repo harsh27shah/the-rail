@@ -94,7 +94,14 @@ const TOO_OCCLUDED_NOTE =
   `identify specifically (you can see its cut, fabric, or pattern) but with some part hidden ` +
   `(a sleeve length, a hem) that you have to infer — that garment should still be ` +
   `catalogued, just flagged. Only leave a garment out completely when nothing distinctive ` +
-  `about it is visible at all.`;
+  `about it is visible at all. The same applies when only a small SLIVER of a garment shows ` +
+  `— for example just the collar or neckline of a shirt or tee peeking out from under a ` +
+  `sweater or fleece, or a hem showing below another layer — because its body, sleeves and ` +
+  `fit are entirely hidden and everything beyond that sliver would be invented. A layered ` +
+  `garment is only worth including when a good part of its body is actually visible (for ` +
+  `instance most of a tee's torso, or its sleeves, under an open jacket). Don't include a ` +
+  `garment you could only describe as "a white tee under a jumper" because you can see its ` +
+  `neckline.`;
 
 // When a garment is only partly visible (a t-shirt mostly hidden under an overshirt, a
 // cropped photo, a folded item) but still has enough visible to identify specifically, the

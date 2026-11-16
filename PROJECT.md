@@ -1011,6 +1011,37 @@ Suggested build order:
       it recurs.
     - **Existing items are not retroactively fixed.** Items already hung from a bad import keep
       whatever they got; the owner removed or corrected the ones noticed.
+25. ✅ **Two generator failures fixed: doubled product photos, and a "ghost" item from a
+    sliver of clothing.** Both found in one screenshot of the storefront after the imports in
+    item 24.
+    - **Doubled photos.** Two items (a navy jumper, a brown polo) showed the garment twice,
+      front stacked above back. This is the stochastic "collage" failure already noted in
+      item 20 — the prompt asks for one view, which only lowers the rate. Prompting couldn't
+      be the fix and asking Gemini to judge its own output had already failed (item 20), so
+      it's now detected in code: `findStackedViewTopBox` (`lib/product-photo.ts`) finds an
+      empty horizontal band through the middle with a garment-sized block above and below it
+      of similar height *and* width, and `normalizeProductPhoto` keeps just the top (front)
+      view. Every condition has to hold, so a single garment, a hairline seam, a side-by-side
+      pair of shoes, or an unequal stack are left alone — all covered in
+      `scripts/test-product-photo.ts`. Run across all 52 stored product photos before
+      shipping: flagged exactly the two known cases, no false positives.
+      `scripts/backfill-stacked-views.ts` repairs existing ones (dry run unless `--apply`);
+      by the time it was run the owner had already fixed those items with "Not quite right?",
+      so it had nothing left to change.
+    - **White tee that showed a fleece.** The tagger had catalogued a "white crew neck tee"
+      from a photo where only a sliver of its collar showed under a cream fleece. With almost
+      nothing of the tee visible, the extractor — told to draw a white tee — drew the fleece,
+      so two items had the same picture (the review badge was correct; the item shouldn't
+      have existed). The "too hidden to catalogue" rule (`TOO_OCCLUDED_NOTE`, item 19) now
+      also covers a mere sliver (a collar or hem peeking out from under another layer); a
+      layered garment is only included when a good part of its body is visible.
+      Checked against all 52 stored originals under the old and new prompts: the sliver-tee
+      is dropped from all three photos that had it; the only other change was two photos
+      losing a "black trousers" that was just a patch of black behind a table or mostly out
+      of frame — the same kind of invented item item 19 set out to exclude. 46 of 52 photos
+      otherwise unchanged. One unrelated oddity seen in the new run: a tan baseball cap
+      catalogued as a Top on the rain-jacket photo (accessories are meant to be skipped);
+      single occurrence, not obviously caused by this change — watch for it.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

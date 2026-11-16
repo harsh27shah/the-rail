@@ -24,11 +24,19 @@ const CARD_RATIO = 3 / 4;
  * near-white garments (a white sneaker, a white sweatshirt) against a similarly pale
  * background, which is the case most likely to be over-trimmed by an aggressive threshold.
  */
-async function findContentBBox(
-  buffer: Buffer,
-  width: number,
-  height: number
-): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+interface ContentMask {
+  mask: Uint8Array; // 1 = this raster pixel differs from the photo's own background
+  rasterWidth: number;
+  rasterHeight: number;
+  scale: number; // raster pixels per full-resolution pixel
+}
+
+/**
+ * Downscales the photo and marks every pixel whose colour is meaningfully different from the
+ * photo's own corner colour. Shared by the bounding-box search and the stacked-view check, so
+ * both judge "is this garment or background?" identically.
+ */
+async function buildContentMask(buffer: Buffer, width: number, height: number): Promise<ContentMask> {
   const RASTER = 300; // downscaled raster used for the pixel scan; scaled back up after
   const scale = RASTER / Math.max(width, height);
   const rasterWidth = Math.max(1, Math.round(width * scale));
@@ -53,41 +61,56 @@ async function findContentBBox(
   const bg = [0, 1, 2].map((c) => Math.round(corners.reduce((sum, p) => sum + p[c], 0) / corners.length));
 
   const DIST_THRESHOLD = 28; // per-pixel RGB distance to count as "different from background"
-  const LINE_FRACTION = 0.015; // a row/column counts as "content" once >1.5% of it qualifies
-
-  function distFromBg(p: [number, number, number]) {
-    return Math.sqrt((p[0] - bg[0]) ** 2 + (p[1] - bg[1]) ** 2 + (p[2] - bg[2]) ** 2);
-  }
-
-  const colHits = new Array(rasterWidth).fill(0);
-  const rowHits = new Array(rasterHeight).fill(0);
+  const mask = new Uint8Array(rasterWidth * rasterHeight);
   for (let y = 0; y < rasterHeight; y++) {
     for (let x = 0; x < rasterWidth; x++) {
-      if (distFromBg(pixelAt(x, y)) > DIST_THRESHOLD) {
+      const p = pixelAt(x, y);
+      const d = Math.sqrt((p[0] - bg[0]) ** 2 + (p[1] - bg[1]) ** 2 + (p[2] - bg[2]) ** 2);
+      if (d > DIST_THRESHOLD) mask[y * rasterWidth + x] = 1;
+    }
+  }
+  return { mask, rasterWidth, rasterHeight, scale };
+}
+
+/** Tight row/column bounds of content within rows [y0, y1] of the mask, or null if none. */
+function boundsWithin(m: ContentMask, y0: number, y1: number) {
+  const LINE_FRACTION = 0.015; // a row/column counts as "content" once >1.5% of it qualifies
+  const { mask, rasterWidth, rasterHeight } = m;
+  const rowsInRange = y1 - y0 + 1;
+  const colHits = new Array(rasterWidth).fill(0);
+  const rowHits = new Array(rasterHeight).fill(0);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = 0; x < rasterWidth; x++) {
+      if (mask[y * rasterWidth + x]) {
         colHits[x]++;
         rowHits[y]++;
       }
     }
   }
-
   let left = 0;
   let right = rasterWidth - 1;
-  let top = 0;
-  let bottom = rasterHeight - 1;
-  while (left < rasterWidth && colHits[left] / rasterHeight < LINE_FRACTION) left++;
-  while (right > left && colHits[right] / rasterHeight < LINE_FRACTION) right--;
-  while (top < rasterHeight && rowHits[top] / rasterWidth < LINE_FRACTION) top++;
+  let top = y0;
+  let bottom = y1;
+  while (left < rasterWidth && colHits[left] / rowsInRange < LINE_FRACTION) left++;
+  while (right > left && colHits[right] / rowsInRange < LINE_FRACTION) right--;
+  while (top < y1 && rowHits[top] / rasterWidth < LINE_FRACTION) top++;
   while (bottom > top && rowHits[bottom] / rasterWidth < LINE_FRACTION) bottom--;
+  if (left >= right || top >= bottom) return null;
+  return { left, right, top, bottom, rowHits };
+}
 
-  if (left >= right || top >= bottom) return null; // no content found — leave untouched
-
-  // Scale the raster bbox back up to full resolution, with a small margin so the crop
-  // doesn't hug the garment's edge exactly.
+/** Raster bounds → full-resolution crop box, with a small margin so the crop doesn't hug the edge. */
+function toFullResBox(
+  b: { left: number; right: number; top: number; bottom: number },
+  scale: number,
+  width: number,
+  height: number
+) {
   const marginFraction = 0.04;
-  const fullLeft = left / scale;
-  const fullRight = (right + 1) / scale;
-  const fullTop = top / scale;
-  const fullBottom = (bottom + 1) / scale;
+  const fullLeft = b.left / scale;
+  const fullRight = (b.right + 1) / scale;
+  const fullTop = b.top / scale;
+  const fullBottom = (b.bottom + 1) / scale;
   const marginX = (fullRight - fullLeft) * marginFraction;
   const marginY = (fullBottom - fullTop) * marginFraction;
   return {
@@ -96,6 +119,81 @@ async function findContentBBox(
     right: Math.min(width, Math.round(fullRight + marginX)),
     bottom: Math.min(height, Math.round(fullBottom + marginY)),
   };
+}
+
+async function findContentBBox(
+  buffer: Buffer,
+  width: number,
+  height: number
+): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+  const m = await buildContentMask(buffer, width, height);
+  const b = boundsWithin(m, 0, m.rasterHeight - 1);
+  if (!b) return null; // no content found — leave untouched
+  return toFullResBox(b, m.scale, width, height);
+}
+
+/**
+ * Detects the generator's "two views in one image" failure (a front view stacked above a
+ * back view, as catalogue sites do) and returns the crop box of just the TOP view — the
+ * front. Found in real use (PROJECT.md §5 item 25): the storefront showed a navy jumper and
+ * a brown polo each drawn twice. The prompt asks for one single view, which makes this rarer
+ * but can't rule it out — it's a generative model — and asking a model to judge its own
+ * output proved unreliable (§5 item 20), so this is plain pixel analysis instead.
+ *
+ * The signature is unmistakable: a clean empty band across the middle with a garment-sized
+ * block of roughly equal height AND width on each side. All of those have to hold, so a
+ * single garment with some internal pale area, or a lone item with a gap near one end, isn't
+ * touched. Only a horizontal split is looked for — side-by-side items (a pair of shoes) are
+ * a normal product shot and are left alone.
+ */
+export async function findStackedViewTopBox(
+  buffer: Buffer,
+  width: number,
+  height: number
+): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+  const m = await buildContentMask(buffer, width, height);
+  const whole = boundsWithin(m, 0, m.rasterHeight - 1);
+  if (!whole) return null;
+
+  const span = whole.bottom - whole.top + 1;
+  const EMPTY_ROW = 0.004; // a row with under 0.4% content pixels is "empty"
+  const isEmpty = (y: number) => whole.rowHits[y] / m.rasterWidth < EMPTY_ROW;
+
+  // Longest run of empty rows strictly inside the content, ignoring the outer margins.
+  let best: { start: number; end: number } | null = null;
+  let y = whole.top;
+  while (y <= whole.bottom) {
+    if (isEmpty(y)) {
+      const start = y;
+      while (y <= whole.bottom && isEmpty(y)) y++;
+      const end = y - 1;
+      if (start > whole.top && end < whole.bottom && (!best || end - start > best.end - best.start)) {
+        best = { start, end };
+      }
+    } else {
+      y++;
+    }
+  }
+  if (!best) return null;
+
+  const gap = best.end - best.start + 1;
+  if (gap < span * 0.04) return null; // a hairline gap is just texture, not a separation
+
+  const top = boundsWithin(m, whole.top, best.start - 1);
+  const bottom = boundsWithin(m, best.end + 1, whole.bottom);
+  if (!top || !bottom) return null;
+
+  const hTop = top.bottom - top.top + 1;
+  const hBottom = bottom.bottom - bottom.top + 1;
+  const wTop = top.right - top.left + 1;
+  const wBottom = bottom.right - bottom.left + 1;
+  const ratio = (a: number, b: number) => Math.min(a, b) / Math.max(a, b);
+
+  // Each half must be a substantial block, and the two must match in size.
+  if (hTop < span * 0.3 || hBottom < span * 0.3) return null;
+  if (ratio(hTop, hBottom) < 0.75 || ratio(wTop, wBottom) < 0.75) return null;
+
+  return toFullResBox(top, m.scale, width, height);
 }
 
 /**
@@ -154,7 +252,10 @@ export async function normalizeProductPhoto(
   let working = buffer;
   if (sourceMeta.width && sourceMeta.height) {
     try {
-      const bbox = await findContentBBox(buffer, sourceMeta.width, sourceMeta.height);
+      // A generated photo showing the garment twice (front above back) keeps only the top view.
+      const bbox =
+        (await findStackedViewTopBox(buffer, sourceMeta.width, sourceMeta.height)) ??
+        (await findContentBBox(buffer, sourceMeta.width, sourceMeta.height));
       if (bbox) {
         working = await sharp(buffer)
           .extract({ left: bbox.left, top: bbox.top, width: bbox.right - bbox.left, height: bbox.bottom - bbox.top })

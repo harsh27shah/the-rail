@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import { getCurrentUser } from "@/lib/auth";
 import { downloadPhoto, getValidAccessToken } from "@/lib/google-photos";
 
@@ -20,7 +21,20 @@ export async function GET(request: NextRequest) {
   try {
     const accessToken = await getValidAccessToken(user.id);
     const bytes = await downloadPhoto(accessToken, baseUrl);
-    return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": mimeType } });
+    // Label the response by what the bytes actually are. Google's Picker reports iPhone photos
+    // as image/heif even when it serves plain JPEG, and a wrong label here used to travel all
+    // the way to the tagger (which rejects it). The upload step re-checks too — see
+    // normalizeUpload in lib/ingest.ts — this just keeps the File's type honest on the way.
+    let contentType = mimeType;
+    try {
+      const format = (await sharp(bytes).metadata()).format;
+      if (format === "jpeg") contentType = "image/jpeg";
+      else if (format === "png") contentType = "image/png";
+      else if (format === "webp") contentType = "image/webp";
+    } catch {
+      // not decodable here — keep Google's label; the upload step reports it properly
+    }
+    return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": contentType } });
   } catch (e) {
     // Host only — the full URL is a (temporary) capability and doesn't belong in logs.
     let host = "unparseable";

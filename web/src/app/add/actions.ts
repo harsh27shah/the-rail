@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { compareGarmentPhotos, tagPhoto, type TagPhotoResult, type TaggedFields } from "@/lib/anthropic";
 import { cropToPersonBox } from "@/lib/crop";
 import { detectPeople, extractGarmentImage, type PersonBox } from "@/lib/gemini";
+import { analysePhoto, BLANK_GARMENT, normalizeUpload } from "@/lib/ingest";
 import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 
@@ -17,18 +18,6 @@ export type AddPhotoResult =
   | { kind: "added"; ids: string[] }
   | { kind: "error"; error: string }
   | { kind: "needs-selection"; people: PersonBox[] };
-
-const BLANK_FALLBACK: TaggedFields = {
-  name: "",
-  category: "",
-  color: "",
-  palette: [],
-  pattern: "",
-  material: "",
-  formality: 0,
-  seasons: [],
-  notes: "",
-};
 
 /**
  * Catalogues ONE photo — which may still contain several distinct garments (see
@@ -57,35 +46,23 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
   }
 
   try {
-    const buffer = Buffer.from(await photo.arrayBuffer());
-    const base64 = buffer.toString("base64");
-    const mimeType = photo.type || "image/jpeg";
+    // Trust the bytes, not the browser's/Google's label — see normalizeUpload.
+    const normalized = await normalizeUpload(photo);
+    const { base64, mimeType, file } = normalized;
 
     // Tagging is best-effort — if it fails, one untitled piece still gets hung on the rail
-    // with the original photo, and the owner can fill it in from the edit page. Matches the
-    // retired prototype's stance that auto-tagging will get things wrong sometimes, and the
-    // edit path is never optional (PROJECT.md §4).
-    let tagResult: TagPhotoResult;
-    try {
-      tagResult = await tagPhoto(base64, mimeType);
-    } catch {
-      tagResult = { peopleCount: 1, garments: [BLANK_FALLBACK] };
-    }
+    // with the original photo, and the owner can fill it in from the edit page (PROJECT.md
+    // §4) — but ONLY once we know the photo has at most one person in it. A failed tag is
+    // never read as "one person": analysePhoto falls back to person detection, and if that
+    // can't settle it either, nothing is added. See lib/ingest.ts.
+    const analysis = await analysePhoto(
+      { base64, mimeType },
+      { tag: (b, m) => tagPhoto(b, m), detect: detectPeople }
+    );
+    if (analysis.kind === "needs-selection") return { kind: "needs-selection", people: analysis.people };
+    if (analysis.kind === "error") return { kind: "error", error: analysis.error };
 
-    if (tagResult.peopleCount > 1) {
-      try {
-        const people = await detectPeople(base64, mimeType);
-        if (people.length > 0) {
-          return { kind: "needs-selection", people };
-        }
-        // Detection itself found nobody usable — fall through and try a normal single pass
-        // rather than dead-ending the upload entirely.
-      } catch (e) {
-        console.error("Person detection failed", e);
-      }
-    }
-
-    return await catalogueGarments(user.id, tagResult.garments, photo, base64, mimeType);
+    return await catalogueGarments(user.id, analysis.garments, file, base64, mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong reading that photo" };
   }
@@ -119,16 +96,14 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
   }
 
   try {
-    const buffer = Buffer.from(await photo.arrayBuffer());
-    const originalBase64 = buffer.toString("base64");
-    const originalMimeType = photo.type || "image/jpeg";
-    const cropped = await cropToPersonBox(originalBase64, originalMimeType, box);
+    const original = await normalizeUpload(photo);
+    const cropped = await cropToPersonBox(original.base64, original.mimeType, box);
 
     let tagResult: TagPhotoResult;
     try {
       tagResult = await tagPhoto(cropped.data, cropped.mimeType, "single-person");
     } catch {
-      tagResult = { peopleCount: 1, garments: [BLANK_FALLBACK] };
+      tagResult = { peopleCount: 1, garments: [BLANK_GARMENT] };
     }
     // "single-person" mode (see tagPhoto's comment) is what actually makes this safe: a
     // tight crop around one person can still catch a sliver of whoever was next to them

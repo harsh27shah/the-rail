@@ -968,6 +968,49 @@ Suggested build order:
     - `scripts/backfill-duplicates.mjs` now only compares items belonging to the same user.
       The other backfill scripts act on every row regardless of owner — fine as owner tools,
       worth revisiting if one ever needs to run against a single user.
+24. ✅ **A failed tag no longer means "one person" — and uploads are read by their bytes, not
+    their label.** Live — found from four Google Photos imports: in one mirror selfie the app
+    extracted the *girlfriend's* coat without ever showing "which one is you?" (the owner had
+    got that picker on another photo), and another item came out titled "Untitled piece".
+    Same root cause for both, confirmed rather than guessed:
+    - **The trigger: a wrong image label.** Google's Picker reports iPhone photos as
+      `image/heif` even when the file it serves is plain JPEG. The upload trusted that label,
+      stored the file as `image/heif`, and passed it to Claude — which rejects any media type
+      outside jpeg/png/webp/gif with a 400 (reproduced directly). Tagging failed on both
+      attempts.
+    - **The real design hole: a failed tag was treated as "one person".** `addPhotoAction`'s
+      fallback was `{ peopleCount: 1, garments: [blank] }`, which skipped the multi-person
+      check entirely. The whole two-person photo became an item named "Untitled piece", and
+      extraction was then told only to extract "Untitled piece" — so Gemini picked a garment
+      itself: her maroon coat in the mirror selfie; his navy sweater, by luck, in the street
+      photo (still titled Untitled, since nothing had ever read it). Also, a tagger that said
+      "several people" while person detection returned nothing fell straight through to
+      cataloguing the unsplit photo.
+    - **Evidence it hit earlier uploads too:** the brown polo and a white tee carried correction
+      snapshots (`previous_state`) showing they had been "Untitled piece" / mis-read until the
+      owner fixed them with "Not quite right?" — that correction is what had been quietly
+      repairing the title.
+    - **Fix (`lib/ingest.ts`, wired into both Add actions).** `normalizeUpload` decides the type
+      from the bytes (sharp): Claude-readable formats keep their original bytes with the true
+      label; anything else decodable (real HEIC/AVIF/TIFF, if the host's libvips can) becomes a
+      high-quality JPEG; a non-image gets a plain error. `analysePhoto` never assumes: a failed
+      tag falls back to person detection (retried once — it varies run to run); two or more
+      people → the picker; only a photo confirmed to have at most one person gets a blank
+      editable item; if the tagger says several people but detection can't find two, or both
+      calls fail, nothing is added and the failure is listed — never a guess. The download
+      route also labels responses by their bytes.
+    - **Verified** by `scripts/test-ingest.ts`: ten fake-dependency cases covering every branch
+      (including the reported one: tag fails + two people → picker), five byte-vs-label cases,
+      then the real photos from the report run with the wrong `heif` label on — all five now
+      reach "which one is you?", including the white-tee photo that had previously skipped it.
+    - **Known limit, not solvable here:** if Claude *undercounts* people on a photo it did read
+      successfully (says one when there are two), the picker still won't appear — the white-tee
+      case before this fix is not fully explained by the label bug, and counting is a model
+      judgement. Running person detection on every photo would close it, at the cost of an
+      extra Gemini call each and false prompts from background strangers. Not done; revisit if
+      it recurs.
+    - **Existing items are not retroactively fixed.** Items already hung from a bad import keep
+      whatever they got; the owner removed or corrected the ones noticed.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

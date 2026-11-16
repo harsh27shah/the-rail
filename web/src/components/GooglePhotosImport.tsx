@@ -101,7 +101,7 @@ export function GooglePhotosImport({
               failures.push(`${p.filename}: ${reason}`);
             } else {
               const blob = await dl.blob();
-              files.push(new File([blob], p.filename, { type: p.mimeType }));
+              files.push(new File([blob], p.filename, { type: blob.type || p.mimeType }));
             }
           } catch (e) {
             failures.push(`${p.filename}: ${e instanceof Error ? e.message : "download failed"}`);

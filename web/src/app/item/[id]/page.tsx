@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireUser } from "@/lib/auth";
 import { getItem, getItems } from "@/lib/items";
 import { pairingsFor } from "@/lib/pairings";
 import { ImageCorrection } from "@/components/ImageCorrection";
@@ -11,10 +12,11 @@ export default async function ItemDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const item = await getItem(id);
+  const user = await requireUser();
+  const item = await getItem(user.id, id);
   if (!item) notFound();
 
-  const allItems = await getItems();
+  const allItems = await getItems(user.id);
   const pairings = pairingsFor(item, allItems);
   const dots = "●".repeat(item.formality || 1) + "○".repeat(Math.max(0, 5 - (item.formality || 1)));
 

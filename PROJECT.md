@@ -819,8 +819,8 @@ Suggested build order:
     multi-person work (item 18) — never broad access, only what's explicitly handed over.
     - **New files**: `lib/google-photos.ts` (OAuth token exchange/refresh + the Picker API
       calls — session create/poll/list/download), `lib/google-auth-store.ts` (token
-      persistence — a new `google_oauth_tokens` table, single-owner mode, one fixed row, no
-      `user_id`/RLS, same as `items`), three API routes (`authorize`, `callback`, plus
+      persistence — a `google_oauth_tokens` table; one fixed "owner" row when built, now one
+      row per user, see item 23), three API routes (`authorize`, `callback`, plus
       `status`/`media`/`download` for the client to poll/list/download against), a server
       action (`add/google-photos-actions.ts`) for starting a session when already connected,
       and a new client component (`GooglePhotosImport.tsx`) rendered directly under the
@@ -878,20 +878,87 @@ Suggested build order:
       generalizes to every upload path, not just Google Photos imports. The real item this
       surfaced on was fixed directly with the successful retry's result rather than asking
       the owner to redo the upload.
-23. ⬜ **Accounts.** Deliberately deferred until the core loop (above) is validated on the
-    owner's own wardrobe — see decision log below.
+23. ✅ **Accounts.** Live — the trigger the decision log below set ("before inviting other
+    people to use it") arrived when the owner wanted a friend to dogfood the app with their
+    own clothes. Chosen over the quick alternative of a second, separate deployment because
+    it's the correct long-term shape and means the *next* friend costs nothing to add.
+    - **Sign-in is a magic link, emailed.** Supabase Auth (`lib/supabase-auth.ts`,
+      `lib/auth.ts`, `proxy.ts`, `app/login`, `app/auth/callback`). A typed 6-digit code
+      was built first and is the better design on a phone — an emailed link opens in whatever
+      browser the mail app picks, not necessarily the one the person started in — but
+      Supabase only lets the code go in the email once a custom email sender is connected,
+      and the default template carries just the link. Switched to links rather than wiring up
+      custom SMTP now.
+      - **Known limitation:** the link must be opened in the *same browser* that asked for it
+        (the sign-in uses a secret stored there). A link opened elsewhere lands on
+        `/login?error=link` with an explanation. The case most likely to bite: signing in
+        from the home-screen (installed) web app on iOS, where the emailed link opens in
+        Safari instead. Fix when it matters: connect custom SMTP and go back to the code flow.
+      - Supabase's built-in email sending is rate-limited to a few emails an hour — fine for
+        the owner plus a friend; the same custom-SMTP step removes that ceiling.
+    - **Invite-only.** Open sign-ups are switched off in the Supabase dashboard, and
+      `signInWithOtp` is called with `shouldCreateUser: false`. Every AI key in this app is
+      billed to the owner (see the decision log), so anyone who found the URL must not be able
+      to create an account and spend it. `scripts/create-user.mjs <email>` is how someone gets
+      in. An unknown email gets the same response as a known one, so the form doesn't reveal
+      who has an account.
+    - **Data isolation is enforced in code, with row-level security as a second layer.** The
+      app still reads and writes through the service-role key (which bypasses RLS), so every
+      function in `lib/items.ts` and `lib/google-auth-store.ts` takes a *required* `userId`
+      and scopes by it — forgetting one is a compile error, and adding accounts surfaced every
+      call site that needed updating at once. Anything that names two rows (flagging a
+      duplicate pair) verifies *both* belong to the caller, since scoping only the row being
+      written would still let one user point their item at another's. RLS is on for `items`
+      and `google_oauth_tokens` with **no policies**: it denies everything to the public
+      anon key, so even someone holding that key (not a secret in most Supabase apps) reads
+      zero rows. Per Next's own auth guidance, the proxy only does a fast cookie check to
+      bounce signed-out visitors — real authorization (`requireUser()`/`getCurrentUser()`)
+      sits next to the data, because Server Actions and Route Handlers are separately
+      callable and a proxy check protects neither. It's called *before* any try/catch in
+      actions, since `redirect()` throws and a catch-all would swallow it.
+    - **Google Photos connection is now per user** (it was one fixed "owner" row, which would
+      have let any user's "Import from Google Photos" open the owner's library). The old
+      table was dropped by the migration — its tokens expired within days anyway — so the
+      owner reconnects once. Also tightened while here: `/api/google-photos/download` took a
+      URL from the browser and fetched it carrying the user's Google bearer token; with
+      untrusted users that was a request-forgery hole, so it now only fetches from Google
+      domains.
+    - **Verified, not assumed.** `scripts/test-tenant-isolation.ts` creates two real users in
+      the real database and has one attack the other through *every* function in the data
+      layer — reads, edits, photo swaps, undo, duplicate-flagging, the duplicate queue, bulk
+      delete (including mixed own/other lists), Google tokens, and the anon key against RLS —
+      importing the real code, not a copy. 27/27 pass. Then two user filters were
+      deliberately removed to prove the test can fail: it caught both (5 failures), and the
+      code was restored. Also driven through the real running app with a throwaway signed-in
+      user: signed-out visitors are bounced from every page and get a 401 from the API; a new
+      user sees only their own item; opening another user's item by URL (view and edit)
+      returns 404 with no leak; sign-out clears the session. Test users and rows were deleted
+      afterwards.
+    - **Existing data**: `items.user_id` was added nullable, then
+      `scripts/assign-existing-items.mjs` claimed all 45 existing items for the owner (none
+      left unowned). Optional follow-up once confident:
+      `alter table items alter column user_id set not null`.
+    - **Not exercised from this end:** actually clicking an emailed link — that needs the
+      owner's inbox. Everything around it (the session it produces, the proxy, the pages, the
+      data) was tested with a session minted directly; the email-click path is the owner's
+      first-login check.
+    - `scripts/backfill-duplicates.mjs` now only compares items belonging to the same user.
+      The other backfill scripts act on every row regardless of owner — fine as owner tools,
+      worth revisiting if one ever needs to run against a single user.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
 
 ### Decisions made building this (keep in sync with the PRD if they change)
 
-- **No accounts in phase 1.** Single-owner mode was chosen deliberately so ingestion + UI
-  could be validated before spending time on auth. Add accounts before inviting other
-  people to use it, not before then.
+- **No accounts in phase 1** *(superseded — accounts shipped, see §5 item 23)*. Single-owner
+  mode was chosen deliberately so ingestion + UI could be validated before spending time on
+  auth, with the rule "add accounts before inviting other people to use it". That moment
+  came, and the rule held.
 - **Anthropic key is server-side and owner-billed.** No more per-user pasted keys (the
   prototype's stopgap). This means the owner's own Anthropic account is billed for all
-  usage until real accounts + usage limits exist.
+  usage — which is why the app is invite-only. Real accounts exist now, but there are still
+  no per-user usage limits, so each invited person's AI usage lands on the owner's bill.
 - **Pairing logic is rule-based, not AI-computed, for now.** Category compatibility +
   formality closeness + pattern-clash avoidance + season overlap. Free to run, no API cost
   per view. Revisit if the suggestions aren't good enough once there's a real wardrobe to

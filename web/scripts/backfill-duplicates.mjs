@@ -110,7 +110,7 @@ async function photoPairFor(item) {
 async function main() {
   const { data: allItems, error } = await supabase
     .from("items")
-    .select("id, name, category, color, image_path, original_image_path, duplicate_of, added")
+    .select("id, user_id, name, category, color, image_path, original_image_path, duplicate_of, added")
     .not("image_path", "is", null)
     .order("added", { ascending: true });
   if (error) throw new Error(error.message);
@@ -140,7 +140,10 @@ async function main() {
     const nameWords = significantWords(item.name);
     const candidates = items
       .slice(0, i)
-      .filter((c) => c.category === item.category && !c.duplicate_of)
+      // Same owner only — with accounts, comparing against another person's wardrobe would
+      // pair items that were never meant to be seen together (lib/items.ts scopes the live
+      // check the same way).
+      .filter((c) => c.user_id === item.user_id && c.category === item.category && !c.duplicate_of)
       .filter((c) => wordsOverlap(colorWords, significantWords(c.color)) || wordsOverlap(nameWords, significantWords(c.name)))
       .slice(0, MAX_CANDIDATES);
 

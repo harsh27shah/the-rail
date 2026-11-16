@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { deletePickerSession, getValidAccessToken, listPickedPhotos } from "@/lib/google-photos";
 
 /**
@@ -10,11 +11,14 @@ import { deletePickerSession, getValidAccessToken, listPickedPhotos } from "@/li
  * per Google's own guidance not to leave sessions around) — nothing else needs it again.
  */
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
   const sessionId = request.nextUrl.searchParams.get("sessionId");
   if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
   try {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await getValidAccessToken(user.id);
     const photos = await listPickedPhotos(accessToken, sessionId);
     void deletePickerSession(accessToken, sessionId);
     return NextResponse.json({

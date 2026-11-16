@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth";
 import { deleteItems, getItem, updateItem } from "@/lib/items";
 import { CATEGORIES, PATTERNS, type Category, type Pattern, type Season } from "@/lib/types";
 
@@ -17,7 +18,8 @@ function asPattern(value: FormDataEntryValue | null): Pattern {
 }
 
 export async function updateItemAction(id: string, formData: FormData) {
-  const existing = await getItem(id);
+  const user = await requireUser();
+  const existing = await getItem(user.id, id);
   if (!existing) throw new Error("That piece isn't on the rail anymore");
 
   const seasons = String(formData.get("seasons") || "")
@@ -25,7 +27,7 @@ export async function updateItemAction(id: string, formData: FormData) {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean) as Season[];
 
-  await updateItem(id, {
+  await updateItem(user.id, id, {
     name: String(formData.get("name") || "").trim() || "Untitled piece",
     category: asCategory(formData.get("category")),
     color: String(formData.get("color") || "").trim(),
@@ -42,6 +44,7 @@ export async function updateItemAction(id: string, formData: FormData) {
 }
 
 export async function deleteItemAction(id: string) {
-  await deleteItems([id]);
+  const user = await requireUser();
+  await deleteItems(user.id, [id]);
   redirect("/");
 }

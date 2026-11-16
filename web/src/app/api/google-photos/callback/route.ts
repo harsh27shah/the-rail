@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { createPickerSession, exchangeCodeForTokens, getValidAccessToken } from "@/lib/google-photos";
 
 /**
@@ -10,6 +11,11 @@ import { createPickerSession, exchangeCodeForTokens, getValidAccessToken } from 
  * and picker URL carried in the redirect's query string.
  */
 export async function GET(request: NextRequest) {
+  // The tokens this stores belong to whoever is signed in right now — the session cookie
+  // comes along on Google's redirect back, so there's no way to attach them to anyone else.
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.redirect(new URL("/login", request.nextUrl.origin));
+
   const params = request.nextUrl.searchParams;
   const error = params.get("error");
   if (error) {
@@ -28,8 +34,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    await exchangeCodeForTokens(code, request.nextUrl.origin);
-    const accessToken = await getValidAccessToken();
+    await exchangeCodeForTokens(user.id, code, request.nextUrl.origin);
+    const accessToken = await getValidAccessToken(user.id);
     const session = await createPickerSession(accessToken);
 
     const redirectUrl = new URL("/add", request.nextUrl.origin);

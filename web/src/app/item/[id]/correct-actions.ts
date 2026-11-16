@@ -1,6 +1,7 @@
 "use server";
 
 import { retagItem } from "@/lib/anthropic";
+import { requireUser } from "@/lib/auth";
 import { correctGarmentImage } from "@/lib/gemini";
 import {
   downloadImage,
@@ -27,12 +28,13 @@ export async function correctImageAction(
   id: string,
   feedback: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
   if (!feedback.trim()) return { ok: false, error: "Add a note about what's wrong first" };
 
-  const item = await getItem(id);
+  const item = await getItem(user.id, id);
   if (!item) return { ok: false, error: "That piece isn't on the rail anymore" };
 
-  const paths = await getItemImagePaths(id);
+  const paths = await getItemImagePaths(user.id, id);
   if (!paths?.currentPath || !paths.originalPath) {
     return { ok: false, error: "No photo to correct for this piece" };
   }
@@ -54,9 +56,9 @@ export async function correctImageAction(
 
     // Record where we're starting from before anything changes — this is what "Undo last
     // correction" restores.
-    await snapshotForUndo(id);
+    await snapshotForUndo(user.id, id);
 
-    await replaceItemImage(id, corrected.data, corrected.mimeType);
+    await replaceItemImage(user.id, id, corrected.data, corrected.mimeType);
 
     // The feedback that fixed the photo often also invalidates what's catalogued about it
     // (e.g. "it's not a sweatshirt, it's a t-shirt" — that's a name/category fix, not just a
@@ -65,6 +67,7 @@ export async function correctImageAction(
     try {
       const retagged = await retagItem(corrected.data, corrected.mimeType, feedback);
       await updateItem(
+        user.id,
         id,
         {
           name: retagged.name || item.name,
@@ -99,8 +102,9 @@ export async function correctImageAction(
 export async function undoCorrectionAction(
   id: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
   try {
-    const reverted = await revertLastCorrection(id);
+    const reverted = await revertLastCorrection(user.id, id);
     if (!reverted) return { ok: false, error: "There's nothing to undo for this piece" };
     return { ok: true };
   } catch (e) {
@@ -112,8 +116,9 @@ export async function undoCorrectionAction(
 export async function resetToOriginalAction(
   id: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
   try {
-    const reset = await resetToOriginalImage(id);
+    const reset = await resetToOriginalImage(user.id, id);
     if (!reset) return { ok: false, error: "This piece is already showing its original photo" };
     return { ok: true };
   } catch (e) {

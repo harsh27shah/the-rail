@@ -65,7 +65,7 @@ interface TokenResponse {
 }
 
 /** Step 2: exchange the one-time code Google's redirect carried back for real tokens. */
-export async function exchangeCodeForTokens(code: string, origin: string): Promise<void> {
+export async function exchangeCodeForTokens(userId: string, code: string, origin: string): Promise<void> {
   const { clientId, clientSecret } = credentials();
   const response = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
@@ -87,14 +87,14 @@ export async function exchangeCodeForTokens(code: string, origin: string): Promi
     // storing a token we can never refresh.
     throw new Error("Google didn't return a refresh token — try disconnecting and reconnecting");
   }
-  await saveTokens({
+  await saveTokens(userId, {
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
     expiresAt: Date.now() + json.expires_in * 1000,
   });
 }
 
-async function refresh(refreshToken: string): Promise<string> {
+async function refresh(userId: string, refreshToken: string): Promise<string> {
   const { clientId, clientSecret } = credentials();
   const response = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
@@ -110,7 +110,7 @@ async function refresh(refreshToken: string): Promise<string> {
     throw new Error(`Google token refresh failed: ${response.status} ${await response.text()}`);
   }
   const json = (await response.json()) as TokenResponse;
-  await saveTokens({ accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 });
+  await saveTokens(userId, { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 });
   return json.access_token;
 }
 
@@ -118,11 +118,11 @@ async function refresh(refreshToken: string): Promise<string> {
  * (or about to be, within a minute — avoids a request failing on a token that expires
  * mid-flight). Throws a clear, specific error if the owner has never connected an account,
  * so callers can tell "not connected yet" apart from "something broke". */
-export async function getValidAccessToken(): Promise<string> {
-  const tokens = await loadTokens();
+export async function getValidAccessToken(userId: string): Promise<string> {
+  const tokens = await loadTokens(userId);
   if (!tokens) throw new Error("NOT_CONNECTED");
   if (tokens.expiresAt > Date.now() + 60_000) return tokens.accessToken;
-  return refresh(tokens.refreshToken);
+  return refresh(userId, tokens.refreshToken);
 }
 
 export interface PickerSession {
@@ -208,6 +208,18 @@ export async function listPickedPhotos(accessToken: string, sessionId: string): 
 /** Downloads one picked photo's actual bytes. `=d` requests the original file rather than
  * a resized preview. Must run server-side — the access token can never reach the browser. */
 export async function downloadPhoto(accessToken: string, baseUrl: string): Promise<Buffer> {
+  // `baseUrl` arrives from the browser (via /api/google-photos/download) and this request
+  // carries the user's Google bearer token, so it must only ever point at Google — otherwise
+  // any signed-in user could aim this server (and their own token) at an arbitrary address.
+  let target: URL;
+  try {
+    target = new URL(baseUrl);
+  } catch {
+    throw new Error("That isn't a Google Photos URL");
+  }
+  if (target.protocol !== "https:" || !/(^|\.)(googleusercontent|google|googleapis)\.com$/.test(target.hostname)) {
+    throw new Error("That isn't a Google Photos URL");
+  }
   const response = await fetch(`${baseUrl}=d`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

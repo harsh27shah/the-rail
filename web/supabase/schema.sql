@@ -65,14 +65,43 @@ insert into storage.buckets (id, name, public)
 values ('wardrobe-images', 'wardrobe-images', true)
 on conflict (id) do nothing;
 
--- Google Photos import (PROJECT.md §5) — the owner's own OAuth tokens, so the app can open
--- a Google Photos Picker session on their behalf without asking them to sign in every time.
--- Single-owner mode (see the note at the top of this file): one fixed row ('owner'), no
--- user_id, no RLS. Revisit before a multi-user phase, same as `items`.
+-- Accounts (PROJECT.md §5 item 23) ----------------------------------------------------
+--
+-- Every wardrobe item now belongs to a Supabase Auth user. The app reads and writes through
+-- the service-role key (which bypasses row-level security) and scopes every query by user_id
+-- itself — lib/items.ts takes a required userId on every function so that can't be forgotten
+-- without a compile error. Row-level security is switched on *with no policies* as a second
+-- layer: it denies everything to the public anon/authenticated roles, so even someone who
+-- obtained the anon key (which is not a secret in most Supabase apps) can't read a row.
+--
+-- user_id starts nullable so existing rows survive the migration. Once the owner has signed
+-- up, run scripts/assign-existing-items.mjs to claim them, then (optionally, once nothing is
+-- null) lock it down:
+--   alter table items alter column user_id set not null;
+alter table items add column if not exists user_id uuid references auth.users(id) on delete cascade;
+create index if not exists items_user_id_idx on items (user_id);
+alter table items enable row level security;
+
+-- Google Photos import (PROJECT.md §5) — each user's own OAuth tokens, so the app can open a
+-- Google Photos Picker session on their behalf without asking them to sign in every time.
+-- Keyed by user, never shared: it was one fixed 'owner' row while the app had no accounts,
+-- which would have let any user's "Import from Google Photos" open someone else's library.
+-- If the old single-row table is still there, drop it — its tokens belong to the owner and
+-- expire within days anyway (Google testing-mode refresh tokens last 7 days), so reconnecting
+-- once is the whole cost.
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'google_oauth_tokens')
+     and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'google_oauth_tokens' and column_name = 'user_id') then
+    drop table google_oauth_tokens;
+  end if;
+end $$;
+
 create table if not exists google_oauth_tokens (
-  id text primary key default 'owner',
+  user_id uuid primary key references auth.users(id) on delete cascade,
   access_token text not null,
   refresh_token text not null,
   expires_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
+alter table google_oauth_tokens enable row level security;

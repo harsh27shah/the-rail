@@ -1,6 +1,7 @@
 "use server";
 
 import { after } from "next/server";
+import { requireUser } from "@/lib/auth";
 import { compareGarmentPhotos, tagPhoto, type TagPhotoResult, type TaggedFields } from "@/lib/anthropic";
 import { cropToPersonBox } from "@/lib/crop";
 import { detectPeople, extractGarmentImage, type PersonBox } from "@/lib/gemini";
@@ -49,6 +50,7 @@ const BLANK_FALLBACK: TaggedFields = {
  * reused across photos.
  */
 export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult> {
+  const user = await requireUser();
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size === 0) {
     return { kind: "error", error: "that photo didn't come through" };
@@ -83,7 +85,7 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
       }
     }
 
-    return await catalogueGarments(tagResult.garments, photo, base64, mimeType);
+    return await catalogueGarments(user.id, tagResult.garments, photo, base64, mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong reading that photo" };
   }
@@ -100,6 +102,7 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
  * original frame never touches storage at all.
  */
 export async function addPhotoWithPersonAction(formData: FormData): Promise<AddPhotoResult> {
+  const user = await requireUser();
   const photo = formData.get("photo");
   const boxRaw = formData.get("box");
   if (!(photo instanceof File) || photo.size === 0) {
@@ -135,7 +138,7 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
     const croppedFile = new File([Buffer.from(cropped.data, "base64")], "cropped.jpg", {
       type: cropped.mimeType,
     });
-    return await catalogueGarments(tagResult.garments, croppedFile, cropped.data, cropped.mimeType);
+    return await catalogueGarments(user.id, tagResult.garments, croppedFile, cropped.data, cropped.mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong with that selection" };
   }
@@ -147,6 +150,7 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
  * schedules each one's background extraction + duplicate check.
  */
 async function catalogueGarments(
+  userId: string,
   tagged: TaggedFields[],
   photo: File,
   base64: string,
@@ -159,6 +163,7 @@ async function catalogueGarments(
     const color = t.color || "";
 
     const id = await createItem(
+      userId,
       {
         name,
         category,
@@ -183,7 +188,7 @@ async function catalogueGarments(
       let extracted: { data: string; mimeType: string } | null = null;
       try {
         extracted = await extractGarmentImage(base64, mimeType, description);
-        if (extracted) await replaceItemImage(id, extracted.data, extracted.mimeType);
+        if (extracted) await replaceItemImage(userId, id, extracted.data, extracted.mimeType);
       } catch (e) {
         console.error("Garment extraction failed for item", id, e);
       }
@@ -195,7 +200,7 @@ async function catalogueGarments(
       // the periodic backfill script catches it once it's ready.
       if (!extracted) return;
       try {
-        const candidates = await findDuplicateCandidates(category, color, name, id);
+        const candidates = await findDuplicateCandidates(userId, category, color, name, id);
         for (const candidate of candidates) {
           try {
             const [candidateExtracted, candidateOriginal] = await Promise.all([
@@ -207,7 +212,7 @@ async function catalogueGarments(
               { original: candidateOriginal, extracted: candidateExtracted }
             );
             if (result.verdict === "same" && result.confidence >= DUPLICATE_CONFIDENCE_THRESHOLD) {
-              await flagDuplicate(id, candidate.id, result.why, result.confidence);
+              await flagDuplicate(userId, id, candidate.id, result.why, result.confidence);
               break; // one flagged match is enough to surface for review
             }
           } catch (e) {

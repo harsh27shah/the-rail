@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/lib/auth";
 import { createPickerSession, getValidAccessToken } from "@/lib/google-photos";
 
 export type StartGooglePhotosResult =
@@ -15,8 +16,9 @@ export type StartGooglePhotosResult =
  * showing a raw error for what's actually just "not connected yet".
  */
 export async function startGooglePhotosSession(): Promise<StartGooglePhotosResult> {
+  const user = await requireUser();
   try {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await getValidAccessToken(user.id);
     const session = await createPickerSession(accessToken);
     return { kind: "session", sessionId: session.id, pickerUri: session.pickerUri };
   } catch (e) {

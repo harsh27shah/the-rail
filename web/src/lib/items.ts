@@ -85,20 +85,20 @@ export function isDatabaseConnected(): boolean {
   return getSupabaseAdmin() !== null;
 }
 
-export async function getItems(): Promise<Item[]> {
+export async function getItems(userId: string): Promise<Item[]> {
   const admin = getSupabaseAdmin();
   if (!admin) return MOCK_ITEMS;
 
-  const { data, error } = await admin.from("items").select("*").order("added", { ascending: false });
+  const { data, error } = await admin.from("items").select("*").eq("user_id", userId).order("added", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as Row[]).map(rowToItem);
 }
 
-export async function getItem(id: string): Promise<Item | null> {
+export async function getItem(userId: string, id: string): Promise<Item | null> {
   const admin = getSupabaseAdmin();
   if (!admin) return MOCK_ITEMS.find((it) => it.id === id) ?? null;
 
-  const { data, error } = await admin.from("items").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await admin.from("items").select("*").eq("id", id).eq("user_id", userId).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? rowToItem(data as Row) : null;
 }
@@ -120,7 +120,7 @@ export interface ItemInput {
 }
 
 /** Uploads a photo to storage and inserts a new item row. Returns the new item's id. */
-export async function createItem(input: ItemInput, photo?: File | null): Promise<string> {
+export async function createItem(userId: string, input: ItemInput, photo?: File | null): Promise<string> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
@@ -137,6 +137,7 @@ export async function createItem(input: ItemInput, photo?: File | null): Promise
   const { data, error } = await admin
     .from("items")
     .insert({
+      user_id: userId,
       name: input.name,
       category: input.category,
       color: input.color,
@@ -166,6 +167,7 @@ export async function createItem(input: ItemInput, photo?: File | null): Promise
  * the flag itself from the fresh tagging result instead.
  */
 export async function updateItem(
+  userId: string,
   id: string,
   input: ItemInput,
   { clearReview = true }: { clearReview?: boolean } = {}
@@ -193,7 +195,7 @@ export async function updateItem(
     patch.review_note = input.reviewNote ?? null;
   }
 
-  const { error } = await admin.from("items").update(patch).eq("id", id);
+  const { error } = await admin.from("items").update(patch).eq("id", id).eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
@@ -204,6 +206,7 @@ export async function updateItem(
  * see PROJECT.md §5.
  */
 export async function replaceItemImage(
+  userId: string,
   id: string,
   base64Data: string,
   mimeType: string
@@ -219,7 +222,7 @@ export async function replaceItemImage(
     .upload(imagePath, buffer, { contentType: mimeType });
   if (uploadError) throw new Error(uploadError.message);
 
-  const { error } = await admin.from("items").update({ image_path: imagePath }).eq("id", id);
+  const { error } = await admin.from("items").update({ image_path: imagePath }).eq("id", id).eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
@@ -229,7 +232,7 @@ export async function replaceItemImage(
  * anything. Overwrites any prior snapshot — undo is one level deep, on purpose ("simple
  * undo", per PROJECT.md §5).
  */
-export async function snapshotForUndo(id: string): Promise<void> {
+export async function snapshotForUndo(userId: string, id: string): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
@@ -238,7 +241,7 @@ export async function snapshotForUndo(id: string): Promise<void> {
     .select(
       "name, category, color, palette, pattern, material, formality, seasons, notes, needs_review, review_note, image_path"
     )
-    .eq("id", id)
+    .eq("id", id).eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return;
@@ -260,20 +263,20 @@ export async function snapshotForUndo(id: string): Promise<void> {
   const { error: updateError } = await admin
     .from("items")
     .update({ previous_state: snapshot })
-    .eq("id", id);
+    .eq("id", id).eq("user_id", userId);
   if (updateError) throw new Error(updateError.message);
 }
 
 /** Restores the snapshot taken before the last correction (fields + which image is shown)
  * and clears it. Returns false if there was nothing to undo. */
-export async function revertLastCorrection(id: string): Promise<boolean> {
+export async function revertLastCorrection(userId: string, id: string): Promise<boolean> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
   const { data, error } = await admin
     .from("items")
     .select("previous_state")
-    .eq("id", id)
+    .eq("id", id).eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   const prev = data?.previous_state as PreviousState | null | undefined;
@@ -296,7 +299,7 @@ export async function revertLastCorrection(id: string): Promise<boolean> {
       image_path: prev.image_path,
       previous_state: null,
     })
-    .eq("id", id);
+    .eq("id", id).eq("user_id", userId);
   if (updateError) throw new Error(updateError.message);
   return true;
 }
@@ -304,14 +307,14 @@ export async function revertLastCorrection(id: string): Promise<boolean> {
 /** Points the item's shown image back at the untouched original upload. Always safe — the
  * original is immutable — so this doesn't write an undo snapshot. Returns false if there's
  * no distinct original to go back to. */
-export async function resetToOriginalImage(id: string): Promise<boolean> {
+export async function resetToOriginalImage(userId: string, id: string): Promise<boolean> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
   const { data, error } = await admin
     .from("items")
     .select("image_path, original_image_path")
-    .eq("id", id)
+    .eq("id", id).eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data?.original_image_path || data.original_image_path === data.image_path) return false;
@@ -319,7 +322,7 @@ export async function resetToOriginalImage(id: string): Promise<boolean> {
   const { error: updateError } = await admin
     .from("items")
     .update({ image_path: data.original_image_path })
-    .eq("id", id);
+    .eq("id", id).eq("user_id", userId);
   if (updateError) throw new Error(updateError.message);
   return true;
 }
@@ -331,14 +334,14 @@ export interface ItemImagePaths {
 
 /** Fetches the two storage paths a correction needs: what's currently shown, and the true
  * source photo it should be checked against. */
-export async function getItemImagePaths(id: string): Promise<ItemImagePaths | null> {
+export async function getItemImagePaths(userId: string, id: string): Promise<ItemImagePaths | null> {
   const admin = getSupabaseAdmin();
   if (!admin) return null;
 
   const { data, error } = await admin
     .from("items")
     .select("image_path, original_image_path")
-    .eq("id", id)
+    .eq("id", id).eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
@@ -404,6 +407,7 @@ export interface DuplicateCandidate {
  * periodic backfill script catches it later once it's ready.
  */
 export async function findDuplicateCandidates(
+  userId: string,
   category: Category,
   color: string,
   name: string,
@@ -416,6 +420,7 @@ export async function findDuplicateCandidates(
   const { data, error } = await admin
     .from("items")
     .select("id, name, color, image_path, original_image_path")
+    .eq("user_id", userId)
     .eq("category", category)
     .neq("id", excludeId)
     .not("image_path", "is", null);
@@ -446,9 +451,24 @@ export async function findDuplicateCandidates(
     }));
 }
 
+/** Every id in `ids` must belong to `userId`. Used where a write names *two* rows (a
+ * duplicate pair): scoping only the row being updated would still let one user point their
+ * item at another user's. */
+async function assertOwnsAll(
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  userId: string,
+  ids: string[]
+): Promise<void> {
+  const unique = [...new Set(ids)];
+  const { data, error } = await admin.from("items").select("id").eq("user_id", userId).in("id", unique);
+  if (error) throw new Error(error.message);
+  if ((data?.length ?? 0) !== unique.length) throw new Error("That piece isn't on your rail");
+}
+
 /** Flags `newItemId` as a suspected duplicate of `originalItemId` — set on the newer item,
  * pointing at the earlier one. */
 export async function flagDuplicate(
+  userId: string,
   newItemId: string,
   originalItemId: string,
   note: string,
@@ -456,11 +476,12 @@ export async function flagDuplicate(
 ): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
+  await assertOwnsAll(admin, userId, [newItemId, originalItemId]);
 
   const { error } = await admin
     .from("items")
     .update({ duplicate_of: originalItemId, duplicate_note: note, duplicate_confidence: confidence })
-    .eq("id", newItemId);
+    .eq("id", newItemId).eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
@@ -471,13 +492,14 @@ export interface DuplicatePair {
 
 /** Every pending suspected-duplicate pair, most recently flagged first — what the
  * "Review duplicates" pill opens onto. */
-export async function getDuplicateQueue(): Promise<DuplicatePair[]> {
+export async function getDuplicateQueue(userId: string): Promise<DuplicatePair[]> {
   const admin = getSupabaseAdmin();
   if (!admin) return [];
 
   const { data: flaggedRows, error } = await admin
     .from("items")
     .select("*")
+    .eq("user_id", userId)
     .not("duplicate_of", "is", null)
     .order("added", { ascending: false });
   if (error) throw new Error(error.message);
@@ -489,7 +511,8 @@ export async function getDuplicateQueue(): Promise<DuplicatePair[]> {
   const { data: originalRows, error: origError } = await admin
     .from("items")
     .select("*")
-    .in("id", originalIds);
+    .in("id", originalIds)
+    .eq("user_id", userId);
   if (origError) throw new Error(origError.message);
 
   const originalsById = new Map((originalRows as Row[]).map((r) => [r.id, rowToItem(r)]));
@@ -511,6 +534,7 @@ export async function getDuplicateQueue(): Promise<DuplicatePair[]> {
  * since the UI only reads them when `duplicate_of` is set.
  */
 export async function resolveDuplicate(
+  userId: string,
   flaggedId: string,
   action: "dismiss" | "remove-flagged" | "remove-original"
 ): Promise<void> {
@@ -518,7 +542,7 @@ export async function resolveDuplicate(
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
   if (action === "remove-flagged") {
-    await deleteItems([flaggedId]);
+    await deleteItems(userId, [flaggedId]);
     return;
   }
 
@@ -527,17 +551,19 @@ export async function resolveDuplicate(
       .from("items")
       .select("duplicate_of")
       .eq("id", flaggedId)
+      .eq("user_id", userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data?.duplicate_of) return;
-    await deleteItems([data.duplicate_of]);
+    await deleteItems(userId, [data.duplicate_of]);
     return;
   }
 
   const { error } = await admin
     .from("items")
     .update({ duplicate_of: null, duplicate_note: null, duplicate_confidence: null })
-    .eq("id", flaggedId);
+    .eq("id", flaggedId)
+      .eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
@@ -552,10 +578,11 @@ export async function resolveDuplicate(
  * indistinguishable from an automatic one except for its note text, and goes through the
  * same keep-both/remove-either review rather than deleting anything immediately.
  */
-export async function markManualDuplicate(itemId: string, duplicateOfId: string): Promise<void> {
+export async function markManualDuplicate(userId: string, itemId: string, duplicateOfId: string): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
   if (itemId === duplicateOfId) throw new Error("An item can't be a duplicate of itself");
+  await assertOwnsAll(admin, userId, [itemId, duplicateOfId]);
 
   const { error } = await admin
     .from("items")
@@ -564,16 +591,16 @@ export async function markManualDuplicate(itemId: string, duplicateOfId: string)
       duplicate_note: "Marked as a duplicate by you.",
       duplicate_confidence: 1,
     })
-    .eq("id", itemId);
+    .eq("id", itemId).eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
 /** Bulk delete — P0 in the PRD, so bad ingestions can be cleared quickly. */
-export async function deleteItems(ids: string[]): Promise<void> {
+export async function deleteItems(userId: string, ids: string[]): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
   if (ids.length === 0) return;
 
-  const { error } = await admin.from("items").delete().in("id", ids);
+  const { error } = await admin.from("items").delete().in("id", ids).eq("user_id", userId);
   if (error) throw new Error(error.message);
 }

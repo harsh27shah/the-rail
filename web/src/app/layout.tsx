@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, Archivo, Space_Mono } from "next/font/google";
 import Link from "next/link";
+import { AccountMenu } from "@/components/AccountMenu";
+import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 const anton = Anton({
@@ -36,13 +38,18 @@ export const metadata: Metadata = {
   },
 };
 
+// The top bar shows who's signed in, so nothing under this layout can be a build-time
+// snapshot — every request has to be rendered for the person making it.
+export const dynamic = "force-dynamic";
+
 export const viewport: Viewport = {
   themeColor: "#1A1A18",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const user = await getCurrentUser();
   return (
     <html lang="en">
       <body className={`${anton.variable} ${archivo.variable} ${spaceMono.variable}`}>
@@ -51,9 +58,12 @@ export default function RootLayout({
             The Rail<span>.</span>
           </Link>
           <div className="bar-spacer" />
-          <Link href="/add" className="btn">
-            + Add a piece
-          </Link>
+          <AccountMenu />
+          {user && (
+            <Link href="/add" className="btn">
+              + Add a piece
+            </Link>
+          )}
         </div>
         {children}
       </body>

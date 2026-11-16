@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/auth";
 import { getItems, isDatabaseConnected } from "@/lib/items";
 import { Storefront } from "@/components/Storefront";
 
@@ -7,7 +8,8 @@ import { Storefront } from "@/components/Storefront";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const items = await getItems();
+  const user = await requireUser();
+  const items = await getItems(user.id);
   const connected = isDatabaseConnected();
 
   return (

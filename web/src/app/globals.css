@@ -40,6 +40,46 @@ a {
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
+/* Signed-in user + sign-out, in the top bar (src/components/AccountMenu.tsx). The email is
+   dropped on narrow screens — the bar already wraps tightly there, and "Sign out" is the
+   part that matters. */
+.account {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+.account-email {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-out {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+.account-out:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+@media (max-width: 560px) {
+  .account-email {
+    display: none;
+  }
+}
 .wordmark {
   font-family: var(--font-display), sans-serif;
   font-size: 26px;

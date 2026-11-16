@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { requireUser } from "@/lib/auth";
 import { getDuplicateQueue } from "@/lib/items";
 import { DuplicateQueue } from "@/components/DuplicateQueue";
 
 export const dynamic = "force-dynamic";
 
 export default async function DuplicatesPage() {
-  const pairs = await getDuplicateQueue();
+  const user = await requireUser();
+  const pairs = await getDuplicateQueue(user.id);
 
   return (
     <div className="form-page" style={{ maxWidth: 720 }}>

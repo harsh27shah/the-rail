@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/lib/auth";
 import { resolveDuplicate } from "@/lib/items";
 
 export type ResolveDuplicateAction = "dismiss" | "remove-flagged" | "remove-original";
@@ -10,8 +11,9 @@ export async function resolveDuplicateAction(
   flaggedId: string,
   action: ResolveDuplicateAction
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser();
   try {
-    await resolveDuplicate(flaggedId, action);
+    await resolveDuplicate(user.id, flaggedId, action);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't update that" };

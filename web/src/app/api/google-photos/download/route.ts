@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { downloadPhoto, getValidAccessToken } from "@/lib/google-photos";
 
 /**
@@ -9,12 +10,15 @@ import { downloadPhoto, getValidAccessToken } from "@/lib/google-photos";
  * like a locally-chosen one.
  */
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
   const baseUrl = request.nextUrl.searchParams.get("baseUrl");
   const mimeType = request.nextUrl.searchParams.get("mimeType") || "image/jpeg";
   if (!baseUrl) return NextResponse.json({ error: "Missing baseUrl" }, { status: 400 });
 
   try {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await getValidAccessToken(user.id);
     const bytes = await downloadPhoto(accessToken, baseUrl);
     return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": mimeType } });
   } catch (e) {

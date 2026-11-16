@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getAuthUrl } from "@/lib/google-photos";
 
 /**
@@ -8,6 +9,9 @@ import { getAuthUrl } from "@/lib/google-photos";
  * sends back, so a forged callback request can't be used to inject someone else's auth code.
  */
 export async function GET(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
   const state = crypto.randomUUID();
   const origin = request.nextUrl.origin;
 

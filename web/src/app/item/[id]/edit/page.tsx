@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireUser } from "@/lib/auth";
 import { getItem } from "@/lib/items";
 import { CATEGORIES, PATTERNS } from "@/lib/types";
 import { deleteItemAction, updateItemAction } from "./actions";
@@ -10,7 +11,8 @@ export default async function EditItemPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const item = await getItem(id);
+  const user = await requireUser();
+  const item = await getItem(user.id, id);
   if (!item) notFound();
 
   const updateWithId = updateItemAction.bind(null, id);

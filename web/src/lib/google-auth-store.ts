@@ -2,13 +2,13 @@ import "server-only";
 import { getSupabaseAdmin } from "./supabase";
 
 /**
- * Persistence for the owner's Google OAuth tokens (Google Photos import — PROJECT.md §5).
- * Single-owner mode, same as the rest of the app: one fixed row, no accounts. Kept separate
+ * Persistence for each signed-in user's own Google OAuth tokens (Google Photos import —
+ * PROJECT.md §5). One row per user, keyed by their Supabase user id — never shared. (It was
+ * a single fixed "owner" row while the app had no accounts; with real accounts that would
+ * have let any user's "Import from Google Photos" open the owner's library.) Kept separate
  * from lib/google-photos.ts (the actual Google API calls) the same way lib/items.ts is kept
  * separate from lib/anthropic.ts/lib/gemini.ts — this file is the DB, that one is the API.
  */
-
-const ROW_ID = "owner";
 
 export interface StoredTokens {
   accessToken: string;
@@ -22,14 +22,14 @@ type Row = {
   expires_at: string;
 };
 
-export async function loadTokens(): Promise<StoredTokens | null> {
+export async function loadTokens(userId: string): Promise<StoredTokens | null> {
   const admin = getSupabaseAdmin();
   if (!admin) return null;
 
   const { data, error } = await admin
     .from("google_oauth_tokens")
     .select("access_token, refresh_token, expires_at")
-    .eq("id", ROW_ID)
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
@@ -44,17 +44,20 @@ export async function loadTokens(): Promise<StoredTokens | null> {
 
 /** `refreshToken` is optional here because a refresh cycle only ever returns a new
  * access token — pass the existing refresh token through unchanged in that case. */
-export async function saveTokens(tokens: {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt: number;
-}): Promise<void> {
+export async function saveTokens(
+  userId: string,
+  tokens: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt: number;
+  }
+): Promise<void> {
   const admin = getSupabaseAdmin();
   if (!admin) throw new Error("Database not connected yet — see .env.local.example");
 
   if (tokens.refreshToken) {
     const { error } = await admin.from("google_oauth_tokens").upsert({
-      id: ROW_ID,
+      user_id: userId,
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
       expires_at: new Date(tokens.expiresAt).toISOString(),
@@ -72,6 +75,6 @@ export async function saveTokens(tokens: {
       expires_at: new Date(tokens.expiresAt).toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", ROW_ID);
+    .eq("user_id", userId);
   if (error) throw new Error(error.message);
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { loadTokens, saveTokens } from "./google-auth-store";
+import { deleteTokens, loadTokens, saveTokens } from "./google-auth-store";
 
 /**
  * Google Photos import (PROJECT.md §5) — lets the owner pick photos directly from their
@@ -107,11 +107,32 @@ async function refresh(userId: string, refreshToken: string): Promise<string> {
     }),
   });
   if (!response.ok) {
-    throw new Error(`Google token refresh failed: ${response.status} ${await response.text()}`);
+    const body = await response.text();
+    // `invalid_grant` is Google saying this connection is permanently dead — expired (apps
+    // whose Google consent screen is still in "Testing" mode have their connections expire
+    // after 7 days) or revoked from the person's Google account. Retrying can never work, and
+    // keeping the stored connection meant the import button kept hitting it forever with a
+    // raw error and no way out (found in real use, 2026-11-23). Forget it, so the next
+    // import starts a fresh connection. Anything else (a wrong client secret, Google having a
+    // bad moment) says nothing about the connection itself, so it's left alone.
+    if (response.status === 400 && body.includes("invalid_grant")) {
+      await deleteTokens(userId);
+      throw new GoogleReconnectNeeded();
+    }
+    throw new Error(`Google token refresh failed: ${response.status} ${body}`);
   }
   const json = (await response.json()) as TokenResponse;
   await saveTokens(userId, { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 });
   return json.access_token;
+}
+
+/** The stored Google connection no longer works and the person has to connect again. Its
+ * message is written for them, not for a log — it's shown as-is where an error surfaces. */
+export class GoogleReconnectNeeded extends Error {
+  constructor() {
+    super("Your Google Photos connection expired. Tap “Import from Google Photos” to reconnect.");
+    this.name = "GoogleReconnectNeeded";
+  }
 }
 
 /** Returns a currently-valid access token, refreshing first if the stored one is expired
@@ -138,6 +159,10 @@ export async function createPickerSession(accessToken: string): Promise<PickerSe
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: "{}",
   });
+  // 401 = Google no longer accepts this access token even though our stored expiry says it
+  // should still be good (the person revoked access in their Google account, say). Same
+  // outcome as an expired connection; the caller clears it and asks them to reconnect.
+  if (response.status === 401) throw new GoogleReconnectNeeded();
   if (!response.ok) {
     throw new Error(`Couldn't start a Google Photos picking session: ${response.status} ${await response.text()}`);
   }

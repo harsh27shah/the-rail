@@ -64,18 +64,27 @@ for convenience; don't mistake that for the intended primary experience.
 | P0 | Storefront-like view of the existing wardrobe |
 | P0 | Styling suggestions underneath each item of the existing wardrobe |
 | P0 | Bulk deleting of items unreliably ingested |
+| P1 | Dress for occasion — type a request, get an outfit built from what you own |
 | P1 | Outfit-of-the-day suggestions (occasion, weather), incl. push notifications |
 | P1 | "Shop this new item to unlock outfits with something you already own" |
 | P1 | Personalise suggestions based on what the user accepts / rejects |
 | P1 | Build a style profile from uploaded looks or influencers the user likes |
 | P1 | Expose different brands & colours in shopping suggestions, at the item level |
 | P1 | Wardrobe-level gap analysis → recommend purchases that complete the wardrobe |
+| P1 | A generic model that visualises the wardrobe's outfits and styles the pairings together |
+| P1 | Favourite ("starred") outfits |
 | P2 | Virtual try-on |
 | P2 | Trip planning — capsule packing + destination-seeded shopping inspiration |
 | P2 | Browser/shopping plug-in flagging new styles or "you own something like this" |
 | P2 | In-person camera point-and-capture ("do I already own this or similar?") |
 | P2 | Find-similar-while-shopping (budget/material-matched alternatives) |
 | P3 | Guided NUX through styling decisions, monthly upgrade suggestions, influencer look-alike, gift wishlist |
+
+*Synced with the PRD's feature table on 2026-11-17: "Dress for occasion", the generic-model
+visualisation, and favourite outfits were in the PRD as P1 but missing here. Note the
+generic model (P1) is **not** virtual try-on (P2): it shows outfits on a stand-in model, not
+on the user's own photo, so it doesn't carry try-on's photorealism / full-resolution cost.
+Open items that fall out of the PRD's "MVP laundry list" tab are tracked in `BACKLOG.md`.*
 
 **Why try-on is P2, not P1 or P0:** it's the most technically expensive item on this list —
 photorealism is hard, and it needs full-resolution source images (the retired prototype's
@@ -1042,6 +1051,28 @@ Suggested build order:
       otherwise unchanged. One unrelated oddity seen in the new run: a tan baseball cap
       catalogued as a Top on the rain-jacket photo (accessories are meant to be skipped);
       single occurrence, not obviously caused by this change — watch for it.
+26. ✅ **A dead Google Photos connection no longer traps the import button.** Found 2026-11-23:
+    the Add page showed Google's raw "token refresh failed: 400 invalid_grant — Token has been
+    expired or revoked", and "Try again" hit the same dead connection every time, with no way
+    to reconnect. Cause: the stored connection had died. Most likely because the Google
+    consent screen is still in **Testing** mode, where (as far as we know) Google expires
+    connections after 7 days — it had been about 8 days since reconnecting. A manual
+    revocation in the Google account would look identical.
+    - **Fix.** `refresh` (`lib/google-photos.ts`) now recognises `invalid_grant`, forgets the
+      stored connection (`deleteTokens`, `lib/google-auth-store.ts`) and throws
+      `GoogleReconnectNeeded`, whose message is plain English. The import button's server
+      action turns that into the same "needs-auth" answer as a first-time connect, so the
+      person is sent straight back through Google's consent screen. The Picker API rejecting
+      an access token with 401 (revoked while our stored expiry still said valid) is handled
+      the same way. Anything that isn't proof the connection is dead — a wrong client secret,
+      a Google outage, a 500 — leaves the stored connection alone.
+    - **Verified** by `scripts/test-google-reconnect.ts` (10 checks): a throwaway user with a
+      fake expired connection against Google's *real* token endpoint (a made-up refresh
+      token gets the same `invalid_grant`), then stubbed responses for the don't-over-reach
+      cases. Throwaway user cleaned up.
+    - **Not fixed — the cause.** Until the Google consent screen leaves Testing mode, every
+      connection will expire weekly, for every user. Needs a look at Google's current rules
+      for this permission first (warning screen, user limits); tracked in `BACKLOG.md`.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

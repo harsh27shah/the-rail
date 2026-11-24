@@ -42,6 +42,17 @@ export async function loadTokens(userId: string): Promise<StoredTokens | null> {
   };
 }
 
+/** Forgets a user's stored Google connection, so the app treats them as "not connected"
+ * and the next import sends them through Google's consent screen again. Used when Google
+ * tells us the stored connection is dead (expired or revoked) — keeping it would just
+ * repeat the same failure forever. */
+export async function deleteTokens(userId: string): Promise<void> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return;
+  const { error } = await admin.from("google_oauth_tokens").delete().eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
 /** `refreshToken` is optional here because a refresh cycle only ever returns a new
  * access token — pass the existing refresh token through unchanged in that case. */
 export async function saveTokens(

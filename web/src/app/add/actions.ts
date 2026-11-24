@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { compareGarmentPhotos, tagPhoto, type TagPhotoResult, type TaggedFields } from "@/lib/anthropic";
 import { cropToPersonBox } from "@/lib/crop";
 import { detectPeople, extractGarmentImage, type PersonBox } from "@/lib/gemini";
-import { analysePhoto, BLANK_GARMENT, normalizeUpload } from "@/lib/ingest";
+import { analysePhoto, BLANK_GARMENT, normalizeUpload, shrinkForAi } from "@/lib/ingest";
+import { UploadRejected, createUploadTarget, discardUpload, isOwnUploadPath, readUpload } from "@/lib/incoming";
 import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 
@@ -18,6 +19,33 @@ export type AddPhotoResult =
   | { kind: "added"; ids: string[] }
   | { kind: "error"; error: string }
   | { kind: "needs-selection"; people: PersonBox[] };
+
+export type CreateUploadResult =
+  | { ok: true; path: string; signedUrl: string }
+  | { ok: false; error: string };
+
+/**
+ * Step zero: hands the browser a one-time link to upload one photo straight to storage (see
+ * lib/incoming.ts for why it doesn't go through the server). The browser then passes the
+ * returned `path` to addPhotoAction instead of the photo itself.
+ */
+export async function createUploadAction(info: { filename: string; type: string; size: number }): Promise<CreateUploadResult> {
+  const user = await requireUser();
+  try {
+    const target = await createUploadTarget(user.id, info);
+    return { ok: true, ...target };
+  } catch (e) {
+    if (e instanceof UploadRejected) return { ok: false, error: e.message };
+    console.error("[upload] couldn't create an upload link:", e);
+    return { ok: false, error: "couldn't start that upload, so try again in a moment" };
+  }
+}
+
+/** Throws away an uploaded photo that won't be used (the owner skipped it, or something failed). */
+export async function discardUploadAction(path: string): Promise<void> {
+  const user = await requireUser();
+  await discardUpload(user.id, path);
+}
 
 /**
  * Catalogues ONE photo — which may still contain several distinct garments (see
@@ -40,15 +68,23 @@ export type AddPhotoResult =
  */
 export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult> {
   const user = await requireUser();
-  const photo = formData.get("photo");
-  if (!(photo instanceof File) || photo.size === 0) {
+  const uploadPath = String(formData.get("uploadPath") ?? "");
+  if (!isOwnUploadPath(user.id, uploadPath)) {
     return { kind: "error", error: "that photo didn't come through" };
   }
 
+  // The photo waits in temporary private storage (lib/incoming.ts) and is deleted as soon as
+  // this finishes. The one exception is a photo with several people: it is kept, still private,
+  // while the owner picks which one is them, and deleted at the next step (or swept after two hours).
+  let keepForSelection = false;
   try {
+    const photo = await readUpload(user.id, uploadPath);
     // Trust the bytes, not the browser's/Google's label — see normalizeUpload.
     const normalized = await normalizeUpload(photo);
-    const { base64, mimeType, file } = normalized;
+    // `file` (full resolution) is what gets stored; `base64`/`mimeType` below are the copy sent
+    // to the AI models, shrunk if the photo is too big for them (see shrinkForAi).
+    const { file } = normalized;
+    const { base64, mimeType } = normalized.ai;
 
     // Tagging is best-effort — if it fails, one untitled piece still gets hung on the rail
     // with the original photo, and the owner can fill it in from the edit page (PROJECT.md
@@ -59,12 +95,17 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
       { base64, mimeType },
       { tag: (b, m) => tagPhoto(b, m), detect: detectPeople }
     );
-    if (analysis.kind === "needs-selection") return { kind: "needs-selection", people: analysis.people };
+    if (analysis.kind === "needs-selection") {
+      keepForSelection = true;
+      return { kind: "needs-selection", people: analysis.people };
+    }
     if (analysis.kind === "error") return { kind: "error", error: analysis.error };
 
     return await catalogueGarments(user.id, analysis.garments, file, base64, mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong reading that photo" };
+  } finally {
+    if (!keepForSelection) await discardUpload(user.id, uploadPath);
   }
 }
 
@@ -80,9 +121,9 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
  */
 export async function addPhotoWithPersonAction(formData: FormData): Promise<AddPhotoResult> {
   const user = await requireUser();
-  const photo = formData.get("photo");
+  const uploadPath = String(formData.get("uploadPath") ?? "");
   const boxRaw = formData.get("box");
-  if (!(photo instanceof File) || photo.size === 0) {
+  if (!isOwnUploadPath(user.id, uploadPath)) {
     return { kind: "error", error: "that photo didn't come through" };
   }
 
@@ -92,16 +133,20 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
     if (!Array.isArray(parsed) || parsed.length !== 4) throw new Error("bad shape");
     box = parsed as PersonBox["box"];
   } catch {
+    // The Add flow moves on to the next photo after an error, so nothing will use this one again.
+    await discardUpload(user.id, uploadPath);
     return { kind: "error", error: "That selection didn't come through right — try again" };
   }
 
   try {
+    const photo = await readUpload(user.id, uploadPath);
     const original = await normalizeUpload(photo);
     const cropped = await cropToPersonBox(original.base64, original.mimeType, box);
+    const croppedAi = await shrinkForAi({ base64: cropped.data, mimeType: cropped.mimeType });
 
     let tagResult: TagPhotoResult;
     try {
-      tagResult = await tagPhoto(cropped.data, cropped.mimeType, "single-person");
+      tagResult = await tagPhoto(croppedAi.base64, croppedAi.mimeType, "single-person");
     } catch {
       tagResult = { peopleCount: 1, garments: [BLANK_GARMENT] };
     }
@@ -113,9 +158,12 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
     const croppedFile = new File([Buffer.from(cropped.data, "base64")], "cropped.jpg", {
       type: cropped.mimeType,
     });
-    return await catalogueGarments(user.id, tagResult.garments, croppedFile, cropped.data, cropped.mimeType);
+    return await catalogueGarments(user.id, tagResult.garments, croppedFile, croppedAi.base64, croppedAi.mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong with that selection" };
+  } finally {
+    // The full multi-person photo's job is done; only the single-person crop lives on.
+    await discardUpload(user.id, uploadPath);
   }
 }
 
@@ -178,9 +226,10 @@ async function catalogueGarments(
         const candidates = await findDuplicateCandidates(userId, category, color, name, id);
         for (const candidate of candidates) {
           try {
+            // Stored originals are full resolution and can be too big for Claude: shrink for the comparison.
             const [candidateExtracted, candidateOriginal] = await Promise.all([
-              downloadImage(candidate.imagePath),
-              downloadImage(candidate.originalImagePath),
+              downloadImage(candidate.imagePath).then(shrinkForAi),
+              downloadImage(candidate.originalImagePath).then(shrinkForAi),
             ]);
             const result = await compareGarmentPhotos(
               { original: { base64, mimeType }, extracted: { base64: extracted.data, mimeType: extracted.mimeType } },

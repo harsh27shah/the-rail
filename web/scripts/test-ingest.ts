@@ -10,8 +10,9 @@
 //   npx tsx --env-file=.env.local --conditions=react-server scripts/test-ingest.ts
 
 import fs from "node:fs";
+import { randomBytes } from "node:crypto";
 import sharp from "sharp";
-import { analysePhoto, normalizeUpload, BLANK_GARMENT, type AnalyseDeps } from "@/lib/ingest";
+import { analysePhoto, normalizeUpload, shrinkForAi, BLANK_GARMENT, type AnalyseDeps } from "@/lib/ingest";
 import type { PersonBox } from "@/lib/gemini";
 import type { TagPhotoResult, TaggedFields } from "@/lib/anthropic";
 
@@ -131,6 +132,29 @@ async function partNormalize() {
     threw = e instanceof Error ? e.message : String(e);
   }
   check("non-image labelled jpeg → clear error", threw.includes("isn't a photo"), threw);
+
+  // ── shrinking for the AI (Claude refuses any single image over about 5 MB) ──
+  const big = await sharp(randomBytes(3600 * 2700 * 3), { raw: { width: 3600, height: 2700, channels: 3 } }).jpeg({ quality: 95 }).toBuffer();
+  check("test photo really is over Claude's 5 MB limit", big.length > 5 * 1024 * 1024, `${(big.length / 1e6).toFixed(1)} MB`);
+  const bigFile = new File([new Uint8Array(big)], "DSCF2147.JPG", { type: "image/jpeg" });
+  const nBig = await normalizeUpload(bigFile);
+  const aiBytes = Buffer.from(nBig.ai.base64, "base64");
+  const aiMeta = await sharp(aiBytes).metadata();
+  check("a huge photo: the AI copy is under 3.5 MB and at most 2048 px", aiBytes.length <= 3_500_000 && Math.max(aiMeta.width!, aiMeta.height!) <= 2048, `${(aiBytes.length / 1e6).toFixed(1)} MB ${aiMeta.width}x${aiMeta.height}`);
+  check("…and the stored original is untouched, full resolution", nBig.file.size === big.length && nBig.base64.length === Buffer.from(big).toString("base64").length);
+
+  const smallBuf = await img("jpeg");
+  const nSmall = await normalizeUpload(new File([new Uint8Array(smallBuf)], "s.jpg", { type: "image/jpeg" }));
+  check("a small photo is sent to the AI exactly as it is", nSmall.ai.base64 === nSmall.base64 && nSmall.ai.mimeType === "image/jpeg");
+
+  const rotated = await sharp({ create: { width: 300, height: 200, channels: 3, background: { r: 10, g: 90, b: 200 } } }).jpeg().withMetadata({ orientation: 6 }).toBuffer();
+  const shrunk = await shrinkForAi({ base64: rotated.toString("base64"), mimeType: "image/jpeg" });
+  const sm = await sharp(Buffer.from(shrunk.base64, "base64")).metadata();
+  check("a photo stored sideways (EXIF) is sent upright", sm.width === 200 && sm.height === 300 && (sm.orientation ?? 1) === 1, `${sm.width}x${sm.height}`);
+
+  const smallPng = await img("png");
+  const keptPng = await shrinkForAi({ base64: smallPng.toString("base64"), mimeType: "image/png" });
+  check("a small PNG keeps its format", keptPng.mimeType === "image/png");
 }
 
 async function partReal() {

@@ -20,8 +20,47 @@ import type { PersonBox } from "./gemini";
 export interface NormalizedPhoto {
   base64: string;
   mimeType: string;
-  /** The same bytes as a File carrying the *true* type — what gets stored. */
+  /** The same bytes as a File carrying the *true* type — what gets stored, at full resolution. */
   file: File;
+  /** What to send to the AI models: the same photo, shrunk if it is too big for them. */
+  ai: { base64: string; mimeType: string };
+}
+
+/** The most the AI models will be sent: longest side in pixels, and bytes. Claude rejects any
+ * single image over about 5 MB (and downsizes anything past ~1600 px itself, so nothing is lost
+ * by shrinking first); Gemini takes more but is slower and dearer the bigger it is. */
+const AI_MAX_SIDE = 2048;
+const AI_MAX_BYTES = 3_500_000;
+
+/**
+ * A copy of a photo that is safe to send to the AI models. Photos already small enough come back
+ * untouched (same bytes, same label). Bigger ones are shrunk and re-saved as JPEG, upright
+ * (the orientation tag baked in, as everywhere else in the app: see lib/crop.ts). The wardrobe
+ * keeps the full-resolution original either way; this copy is only ever sent for analysis.
+ *
+ * Found while fixing the 4.5 MB upload limit: a big photo that finally reached the server would
+ * have been refused by Claude's 5 MB image limit, and the app would have quietly treated that as
+ * "couldn't read it". The limit was always there, just never reached.
+ */
+export async function shrinkForAi(
+  photo: { base64: string; mimeType: string },
+  maxSide = AI_MAX_SIDE,
+  maxBytes = AI_MAX_BYTES
+): Promise<{ base64: string; mimeType: string }> {
+  const buffer = Buffer.from(photo.base64, "base64");
+  const meta = await sharp(buffer).metadata();
+  const longest = Math.max(meta.width ?? 0, meta.height ?? 0);
+  if (buffer.length <= maxBytes && longest <= maxSide && (meta.orientation ?? 1) === 1) return photo;
+
+  for (const quality of [85, 75, 65, 55]) {
+    const out = await sharp(buffer)
+      .rotate()
+      .resize({ width: maxSide, height: maxSide, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality })
+      .toBuffer();
+    if (out.length <= maxBytes || quality === 55) return { base64: out.toString("base64"), mimeType: "image/jpeg" };
+  }
+  return photo; // unreachable: the loop always returns on its last pass
 }
 
 const CLAUDE_FORMATS: Record<string, string> = {
@@ -52,14 +91,16 @@ export async function normalizeUpload(photo: File): Promise<NormalizedPhoto> {
 
   const known = format ? CLAUDE_FORMATS[format] : undefined;
   if (known) {
-    return { base64: buffer.toString("base64"), mimeType: known, file: asFile(buffer, photo.name, known) };
+    const base64 = buffer.toString("base64");
+    return { base64, mimeType: known, file: asFile(buffer, photo.name, known), ai: await shrinkForAi({ base64, mimeType: known }) };
   }
 
   try {
     // .rotate() bakes any EXIF orientation into the pixels, so nothing downstream (the
     // person-box crop especially — see lib/crop.ts) has to know the tag ever existed.
     const jpeg = await sharp(buffer).rotate().jpeg({ quality: 92 }).toBuffer();
-    return { base64: jpeg.toString("base64"), mimeType: "image/jpeg", file: asFile(jpeg, photo.name, "image/jpeg") };
+    const base64 = jpeg.toString("base64");
+    return { base64, mimeType: "image/jpeg", file: asFile(jpeg, photo.name, "image/jpeg"), ai: await shrinkForAi({ base64, mimeType: "image/jpeg" }) };
   } catch {
     throw new Error(`couldn't read that ${format ?? "image"} photo — try saving it as a JPEG first`);
   }

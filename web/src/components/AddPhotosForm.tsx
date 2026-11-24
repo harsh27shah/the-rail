@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addPhotoAction, addPhotoWithPersonAction } from "@/app/add/actions";
+import { addPhotoAction, addPhotoWithPersonAction, createUploadAction, discardUploadAction } from "@/app/add/actions";
 import { GooglePhotosImport } from "@/components/GooglePhotosImport";
 import type { PersonBox } from "@/lib/gemini";
 
@@ -22,11 +22,34 @@ import type { PersonBox } from "@/lib/gemini";
 
 type Phase =
   | { kind: "idle" }
-  | { kind: "working"; done: number; total: number }
+  | { kind: "working"; done: number; total: number; step: "uploading" | "reading" }
   | { kind: "needs-selection"; done: number; total: number; previewUrl: string; people: PersonBox[] }
   | { kind: "done"; created: number; skipped: number; failures: string[] };
 
 type SelectionChoice = { type: "box"; box: PersonBox["box"] } | { type: "skip" };
+
+/**
+ * Sends one photo straight from the browser to temporary private storage, using a one-time link
+ * the server hands out (see lib/incoming.ts). The server never receives the photo itself, which
+ * is what lets a big camera or iPhone photo through: Vercel refuses any request body over about
+ * 4.5 MB. The server is then given only the photo's storage path.
+ */
+async function uploadPhoto(file: File): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  try {
+    const target = await createUploadAction({ filename: file.name, type: file.type, size: file.size });
+    if (!target.ok) return { ok: false, error: target.error };
+    // The same shape Supabase's own upload helper sends. Some browsers report no type for a
+    // perfectly good photo; storage only accepts images, so say it's one.
+    const form = new FormData();
+    form.append("cacheControl", "3600");
+    form.append("", new Blob([file], { type: file.type || "image/jpeg" }));
+    const res = await fetch(target.signedUrl, { method: "PUT", headers: { "x-upsert": "false" }, body: form });
+    if (!res.ok) return { ok: false, error: "the upload didn't go through, so try it again" };
+    return { ok: true, path: target.path };
+  } catch {
+    return { ok: false, error: "the upload didn't go through. Check your connection and try again" };
+  }
+}
 
 export function AddPhotosForm() {
   const router = useRouter();
@@ -57,15 +80,23 @@ export function AddPhotosForm() {
     let skipped = 0;
 
     for (let i = 0; i < files.length; i++) {
-      setPhase({ kind: "working", done: i, total: files.length });
+      setPhase({ kind: "working", done: i, total: files.length, step: "uploading" });
+      const up = await uploadPhoto(files[i]);
+      if (!up.ok) {
+        failures.push(`${files[i].name} — ${up.error}`);
+        continue;
+      }
+
+      setPhase({ kind: "working", done: i, total: files.length, step: "reading" });
       const fd = new FormData();
-      fd.append("photo", files[i]);
+      fd.append("uploadPath", up.path);
 
       let result;
       try {
         result = await addPhotoAction(fd);
       } catch (err) {
         failures.push(`${files[i].name} — ${err instanceof Error ? err.message : "failed"}`);
+        void discardUploadAction(up.path).catch(() => {});
         continue;
       }
 
@@ -77,17 +108,20 @@ export function AddPhotosForm() {
 
         if (choice.type === "skip") {
           skipped++;
+          // The full photo, with other people in it, is no longer needed: delete it now.
+          void discardUploadAction(up.path).catch(() => {});
           continue;
         }
 
-        setPhase({ kind: "working", done: i, total: files.length });
+        setPhase({ kind: "working", done: i, total: files.length, step: "reading" });
         const fd2 = new FormData();
-        fd2.append("photo", files[i]);
+        fd2.append("uploadPath", up.path);
         fd2.append("box", JSON.stringify(choice.box));
         try {
           result = await addPhotoWithPersonAction(fd2);
         } catch (err) {
           failures.push(`${files[i].name} — ${err instanceof Error ? err.message : "failed"}`);
+          void discardUploadAction(up.path).catch(() => {});
           continue;
         }
       }
@@ -150,7 +184,7 @@ export function AddPhotosForm() {
 
       {phase.kind === "working" && (
         <p className="hint" style={{ margin: "8px 0 0" }}>
-          Reading photo {phase.done + 1} of {phase.total}…
+          {phase.step === "uploading" ? "Uploading" : "Reading"} photo {phase.done + 1} of {phase.total}…
         </p>
       )}
 
@@ -232,7 +266,7 @@ export function AddPhotosForm() {
         <div className="actions">
           <button type="submit" className="btn" disabled={working || files.length === 0}>
             {phase.kind === "working"
-              ? `Reading ${phase.done + 1} of ${phase.total}…`
+              ? `${phase.step === "uploading" ? "Uploading" : "Reading"} ${phase.done + 1} of ${phase.total}…`
               : files.length > 1
                 ? `Read & hang ${files.length} photos`
                 : "Read & hang on the rail"}

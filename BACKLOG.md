@@ -11,15 +11,16 @@ Each line: what it is → why it's parked / what triggers doing it.
 
 ## Do soon (real user-facing breakage, waiting on a go-ahead)
 
-- [ ] **Large photos fail on the deployed site.** A Fuji camera photo (DSCF2147.JPG) failed with
-  "An unexpected response was received from the server." Likely cause: Vercel rejects any
-  request body over ~4.5 MB (our own limit is 25 MB, so it works locally). Not yet confirmed —
-  the file's size, or whether a retry works, would settle it (a timeout is the other
-  possibility). Fix proposed: browser uploads the full-resolution photo straight to Supabase
-  storage with a one-time pass, then the server reads it from there. → Waiting on your go-ahead.
-- [ ] **Set an explicit time limit (`maxDuration`) on the photo-processing requests.** None is
-  set; a photo with several people can run long enough to be cut off. → Do together with the
-  item above.
+- [~] **Large photos fail on the deployed site.** Built and tested on the owner's machine
+  (2026-11-25), **not live yet** (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
+  with "An unexpected response was received from the server", most likely Vercel's ~4.5 MB limit
+  on request bodies (not confirmed on the live site). Photos now go from the browser straight to
+  temporary private storage and the server reads them from there; a second, hidden limit
+  (Claude refuses any image over ~5 MB) is handled by sending the AI a shrunk copy. After it
+  goes live: re-try the Fuji photo to confirm.
+- [x] **Time limit (`maxDuration`) on photo processing.** Turned out to be set already: the Add
+  page has 60 seconds (and the item page now does too). Nothing to do unless photos start timing
+  out.
 - [ ] **Re-test the Painted Ladies photo on the deployed site.** Re-import it, tap yourself in the
   picker, and confirm you get the sweater, jeans and sneakers (verified locally from the
   stored original, not yet through the live upload). Delete any leftover sweater-only
@@ -91,7 +92,8 @@ on that item's page. It replaces today's single-item "styles well with" suggesti
 **Deliberately later**
 - [ ] Seasonality / weather in outfit choice (outerwear in summer is currently possible).
 - [ ] "Interested / not interested" on outfits, to see more and to personalise.
-- [ ] Create an outfit by describing the vibe.
+- [ ] Create an outfit by describing the vibe. Entry point idea: the home page search bar, which
+  needs improving anyway, could grow into "describe the vibe you're going for".
 - [ ] Measuring "suggestions actually worn" (the north star) and wear logging. Not now, but every
   week without wear data is data lost (PROJECT.md §2).
 - [ ] Validate shoe and outerwear pairings; so far only top-and-bottom pairs have been rated.
@@ -281,6 +283,12 @@ say so. Items you'd already struck through are listed as done.
   cost once there's a real wardrobe to judge them on.
 
 ## Tiny cleanups
+
+- [ ] **Text in proper sentence case everywhere, with a check that keeps it that way.** Some
+  pages show all-lowercase text. Fix it to sentence case with standard spelling, grammar and
+  punctuation, then add an automatic check that new text must pass. Keep the deliberate
+  exceptions: the uppercase mono garment-tag labels and Anton headings (PROJECT.md §3), and
+  British spelling.
 
 - [ ] **Misplaced code comment** in `web/src/lib/product-photo.ts`: the long description of the
   bounding-box search now sits above the new `ContentMask` helper instead of above

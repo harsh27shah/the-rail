@@ -1,5 +1,6 @@
 "use server";
 
+import { shrinkForAi } from "@/lib/ingest";
 import { retagItem } from "@/lib/anthropic";
 import { requireUser } from "@/lib/auth";
 import { correctGarmentImage } from "@/lib/gemini";
@@ -40,9 +41,11 @@ export async function correctImageAction(
   }
 
   try {
+    // The stored original is full resolution and can be far bigger than the AI models take:
+    // send a shrunk copy (lib/ingest.ts), as the Add flow does.
     const [current, original] = await Promise.all([
-      downloadImage(paths.currentPath),
-      downloadImage(paths.originalPath),
+      downloadImage(paths.currentPath).then(shrinkForAi),
+      downloadImage(paths.originalPath).then(shrinkForAi),
     ]);
     const description = [item.color, item.name].filter(Boolean).join(" ") || "garment";
 

@@ -614,7 +614,9 @@ Suggested build order:
       can drift the way a regeneration sometimes does, see item 13 below) and only that
       crop re-enters the ordinary tagging/extraction pipeline. The full multi-person photo
       is never stored — only the single-person crop becomes the item's photo, so whoever
-      else was in frame never touches storage at all.
+      else was in frame never touches storage at all. *(Item 28 changes this slightly: the full
+      photo is now held for a short time in a private temporary bucket while the owner chooses,
+      then deleted.)*
     - **Deliberately not biometric.** The app never builds or stores any notion of "what
       does the owner look like." Nothing about a person is remembered across photos —
       identity is established solely by the owner's own tap, in the moment, on the one
@@ -1127,6 +1129,43 @@ Suggested build order:
       without outerwear shift the tiles left because tiles aren't aligned by category; the "failed"
       state doesn't retry by itself, only on the button; the failure path was tested by forcing the
       stored state, not by a real outage.
+
+28. 🟡 **Big photos: upload straight to storage, and always send the AI a sensibly sized copy —
+    built and verified locally, not live.** Prompted by a Fuji camera photo failing on the live site
+    with "An unexpected response was received from the server". The likely cause is Vercel
+    refusing request bodies over ~4.5 MB (our own 25 MB limit only applies locally); phone and
+    camera photos are often bigger. Two problems, one fix:
+    - **Upload path.** The Add flow no longer posts each photo through a Server Action. The browser
+      asks for a one-time upload link (`createUploadAction`), sends the photo straight to a
+      **private temporary bucket** (`incoming-photos`, created by the app on first use; 40 MB per
+      photo; `lib/incoming.ts`), then gives the server only the photo's storage path
+      (`addPhotoAction` / `addPhotoWithPersonAction` read it back with `readUpload`). The temporary
+      copy is deleted as soon as the photo is processed, skipped or has failed; anything walked
+      away from is swept after two hours, and each account can only name its own folder.
+    - **Privacy trade-off (decided in passing, worth the owner's veto):** item 18 said the full
+      multi-person photo "never touches storage". With direct upload it now sits in the private
+      bucket (no public link) while the owner picks which person is them, then is deleted at the
+      next step or at the latest two hours later. Only the single-person crop becomes part of the
+      wardrobe, as before. Nothing is recognised or remembered about anyone.
+    - **The second, hidden limit.** Claude rejects any single image over about 5 MB. It was never
+      reached before because big photos never got that far, so it would have turned every big photo
+      into a silent "couldn't read it". `shrinkForAi` (`lib/ingest.ts`) now sends every AI call
+      (tagging, person detection, extraction, duplicate comparison, "Not quite right?") a copy
+      capped at 2048 px and 3.5 MB, upright, while the wardrobe keeps the full-resolution original
+      (a stored crop of the 10 MB test photo stayed at full size). Small photos are sent untouched.
+    - **Verified:** `scripts/test-incoming.ts` (29 checks against the real storage: path safety,
+      limits, 6 MB round trip, another account refused, no public link, link works once, deletion,
+      two-hour sweep); 5 new checks in `scripts/test-ingest.ts` (a >5 MB photo is shrunk, small is
+      untouched, sideways photos made upright). In the running app, on a throwaway account: a
+      10.2 MB, 24-megapixel photo uploaded and was read, shown the "which one is you?" picker, cropped
+      to two items with the stored originals still 12 MB; the skip path deleted the held photo; an
+      ordinary small photo still produced three items; temporary storage was empty after each run.
+      It was **not** tested on Vercel itself (the limit doesn't exist locally), so the first live
+      test is the Fuji photo again.
+    - **Known limits:** no upload progress bar (a "Uploading" step shows instead); no resume if the
+      tab closes mid-batch; the 40 MB per-photo ceiling; the upload goes straight from the browser to
+      Supabase, so it needs Supabase's storage reachable from the person's network (same as the
+      photos already shown on the site).
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

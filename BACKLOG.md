@@ -86,7 +86,7 @@ on that item's page. It replaces today's single-item "styles well with" suggesti
   needed first (matches the existing coverage nudge).
 - Each outfit carries a one-line rationale.
 - The hover pills on the grid are removed once the outfits on the item page are built and
-  look right (not before).
+  look right (not before). **Done 2026-11-25** (owner approved; pending going live).
 
 **Deliberately later**
 - [ ] Seasonality / weather in outfit choice (outerwear in summer is currently possible).
@@ -192,6 +192,14 @@ say so. Items you'd already struck through are listed as done.
   "getting in" means while sign-up is closed (request an invite? waitlist?), and what it
   should show (screenshots of the rail and the new outfits view, the pitch from PROJECT.md
   §1). Needs the sign-in rules in `src/proxy.ts` loosened for the landing page only.
+- [ ] **Public "what we're building" link on the home page.** A link users can click to see the
+  upcoming product backlog, so they know what's being worked on (building in public). Open
+  question: show this file as-is, or a cleaned-up public version (it has internal notes, costs
+  and script names)?
+- [ ] **"Send feedback" pill: rant freely, we turn it into a product request.** A floating pill on
+  every page where people can type or speak (possibly a dictation tool like Wispr Flow) as
+  unstructured as they like. Behind the scenes it's turned into a tidy, formal request for you.
+  Goal: zero effort to give feedback, no need to describe the issue precisely.
 - [ ] **Invite your friend** to dogfood: `node scripts/create-user.mjs <email>`. Their AI usage is
   billed to you (see the limits item above).
 - [ ] **Make `items.user_id` required** once you're confident:
@@ -243,6 +251,11 @@ say so. Items you'd already struck through are listed as done.
   is the safety net. → Add automatic detection only if these become common.
 - [ ] **Pure gym gear isn't rejected** — a technical running tee still gets catalogued as a Top.
   Actively excluding it would be a separate feature.
+- [ ] **"This is actually from Zara": let people name the brand and paste a product link.** The
+  person says what the real item is (brand, plus one or more product URLs), and we find the
+  real product to make a more realistic generated photo, and to learn its real texture, fit and
+  material where we can pin the item down. Note: the retired prototype found retailer pages
+  flaky to read (scrapers get blocked; PROJECT.md §4), so plan for links that can't be read.
 
 ## Wardrobe data & coverage
 

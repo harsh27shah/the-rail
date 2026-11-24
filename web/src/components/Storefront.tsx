@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CATEGORIES, type Category, type Item } from "@/lib/types";
-import { pairingsFor } from "@/lib/pairings";
 import { coverageGap } from "@/lib/coverage";
 import { ItemCard } from "./ItemCard";
 import { bulkDeleteAction } from "@/app/actions";
@@ -282,7 +281,6 @@ export function Storefront({ items }: { items: Item[] }) {
                       <ItemCard
                         key={it.id}
                         item={it}
-                        pairings={pairingsFor(it, items)}
                         selectMode={selectMode}
                         selected={selected.has(it.id)}
                         onToggleSelect={toggleSelect}
@@ -315,7 +313,6 @@ export function Storefront({ items }: { items: Item[] }) {
               <ItemCard
                 key={it.id}
                 item={it}
-                pairings={pairingsFor(it, items)}
                 selectMode={selectMode}
                 selected={selected.has(it.id)}
                 onToggleSelect={toggleSelect}

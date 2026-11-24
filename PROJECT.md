@@ -187,6 +187,10 @@ made this look right — each pill is a small 32×32 crop of the paired item's o
 photo (`.pair-pill-img`), not its name. Falls back to a text pill for the rare item with no
 photo yet.
 
+**Removed 2026-11-25 (§5 item 27): the hover pairing pills.** Whole recommended outfits on the item
+page replaced them, so the overlay now shows only the item's details and the Edit and correction
+buttons. The paragraph above is kept as history.
+
 ### Copy voice
 
 Interface-voiced, never apologetic, always specific about what happened and what to do.
@@ -1078,7 +1082,7 @@ Suggested build order:
     around that item (top, bottom, shoes, sometimes outerwear), pieces side by side, each with a
     one-line reason. M2 (worn by a generic model) and M3 (worn by the user's own avatar) come
     later; decisions, rules and deferred items are in `BACKLOG.md` ("Planned: recommended
-    outfits"). The grid's hover pills stay until the owner confirms these read well.
+    outfits"). The grid's hover pairing pills were removed on 2026-11-25, after the owner confirmed these look good.
     - **Why the AI stylist, and what it rests on.** The rule-based pairing scorer was no better than
       chance against the owner's ratings, and rules plus colour was worse. Against four other
       people's ratings of the same 24 top-and-bottom pairs, an AI stylist tracked the crowd at

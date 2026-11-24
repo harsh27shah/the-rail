@@ -10,13 +10,11 @@ function seasonCode(s: string) {
 
 export function ItemCard({
   item,
-  pairings,
   selectMode = false,
   selected = false,
   onToggleSelect,
 }: {
   item: Item;
-  pairings: Item[];
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -120,23 +118,6 @@ export function ItemCard({
                 <span key={i} className="swatch" style={{ background: h }} />
               ))}
             </div>
-          </div>
-          <div className="pair-pills">
-            {pairings.length ? (
-              pairings.map((p) =>
-                p.imageUrl ? (
-                  <span key={p.id} className="pair-pill pair-pill-img" title={p.name}>
-                    <img src={p.imageUrl} alt={p.name} />
-                  </span>
-                ) : (
-                  <span key={p.id} className="pair-pill pair-pill-text" title={p.name}>
-                    {p.name}
-                  </span>
-                )
-              )
-            ) : (
-              <span className="pair-pills-empty">No pairings yet</span>
-            )}
           </div>
         </div>
       </div>

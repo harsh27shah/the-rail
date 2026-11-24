@@ -105,3 +105,22 @@ create table if not exists google_oauth_tokens (
   updated_at timestamptz not null default now()
 );
 alter table google_oauth_tokens enable row level security;
+
+-- Recommended outfits (PROJECT.md §5 item 27) — the outfits worked out for each item, kept so
+-- opening an item never costs an AI request unless something has really changed. One row per
+-- (user, item): `outfits` is a list of {itemIds, why}. `status` lets two open tabs avoid
+-- generating the same item twice. Rows go away with their user or their item. RLS is on with no
+-- policies, like every other table: the public anon key can read nothing.
+create table if not exists outfit_sets (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  hero_item_id uuid not null references items(id) on delete cascade,
+  status text not null check (status in ('generating', 'ready', 'failed')),
+  outfits jsonb not null default '[]'::jsonb,
+  wardrobe_size integer,
+  engine_version text,
+  error text,
+  started_at timestamptz,
+  generated_at timestamptz,
+  primary key (user_id, hero_item_id)
+);
+alter table outfit_sets enable row level security;

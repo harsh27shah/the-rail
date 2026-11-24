@@ -1073,6 +1073,56 @@ Suggested build order:
     - **Not fixed — the cause.** Until the Google consent screen leaves Testing mode, every
       connection will expire weekly, for every user. Needs a look at Google's current rules
       for this permission first (warning screen, user limits); tracked in `BACKLOG.md`.
+27. 🟡 **Recommended outfits (ROs), milestone M1 — built and verified locally, not live.** Replaces
+    the item page's row of single "styles well with" items with up to four whole outfits built
+    around that item (top, bottom, shoes, sometimes outerwear), pieces side by side, each with a
+    one-line reason. M2 (worn by a generic model) and M3 (worn by the user's own avatar) come
+    later; decisions, rules and deferred items are in `BACKLOG.md` ("Planned: recommended
+    outfits"). The grid's hover pills stay until the owner confirms these read well.
+    - **Why the AI stylist, and what it rests on.** The rule-based pairing scorer was no better than
+      chance against the owner's ratings, and rules plus colour was worse. Against four other
+      people's ratings of the same 24 top-and-bottom pairs, an AI stylist tracked the crowd at
+      0.45 (0 = unrelated, 1 = identical), about as well as a typical single rater tracks the
+      rest (0.32, 0.40, 0.52); today's rules scored -0.23. Only top-and-bottom pairs were rated,
+      so shoes and outerwear choices are unvalidated (tracked in the backlog). Details and data:
+      `web/eval-data/`, `scripts/eval-*.ts`. The owner's own taste was deliberately NOT turned
+      into rules: his "no" reasons were mostly not shared by the others.
+    - **How it works.** `lib/outfits.ts` holds the rules and checks (pure logic, tested with a fake
+      stylist in `scripts/test-outfits.ts`, 43 checks); `lib/stylist.ts` (`claudeOutfitModel`) asks
+      Claude with the item's photo, numbered contact sheets of the wardrobe by category, and a text
+      list, and gets back labels plus a reason, never names. Every answer is checked before use:
+      right categories, hero in every outfit, one piece per category, outerwear in at least 1
+      and at most 3 outfits (when owned and when the item isn't outerwear), outfits differing in
+      at least two pieces (relaxed to one if too few remain), reasons tidied to sentence case with
+      no dashes. One retry with the problems spelled out; if still bad it shows fewer outfits or a
+      failure message, never invalid ones. Duplicates flagged on the rail are never used. Below 5
+      tops or 5 bottoms (the existing coverage minimums) the page shows an explainer and makes no
+      AI request. A category the person doesn't own is left out.
+    - **Saved, not recomputed.** Table `outfit_sets` (one row per user and item; RLS on, no
+      policies; schema in `supabase/schema.sql`, **run by hand**) via `lib/outfit-store.ts`. Outfits
+      are generated from the item page when none are saved (`outfit-actions.ts`, a server action
+      called by `components/OutfitsSection.tsx`, not during page render, so prefetching can't cost
+      money) and reused until: a piece in them is deleted or flagged a duplicate, the wardrobe
+      size moves by 5, or `OUTFIT_ENGINE_VERSION` changes. A "generating" claim stops two tabs
+      paying twice (a claim older than 3 minutes is treated as dead). If the table is missing the
+      page falls back to the old single-item suggestions instead of breaking.
+    - **Cost and speed (measured, rates assumed at $3 / $15 per million tokens):** about 2.5 cents
+      and 6 to 11 seconds per item, so roughly $1.40 for the whole 54-item wardrobe if every item
+      were opened once. Per-user AI caps are still open (see backlog).
+    - **Verified:** logic tests; a real run on six items from every category (all valid first
+      try); in the running app, signed in: loading state, generation, reuse on reload (one AI
+      request only), clicking a piece to its own outfits, the failure state and its retry button,
+      automatic regeneration of outdated outfits, "another tab is generating" waiting then
+      updating itself, the small-wardrobe explainer (a throwaway 2 tops and 2 bottoms account),
+      another account getting a 404 for the owner's item, and a phone-width layout with no
+      sideways scroll. `scripts/test-tenant-isolation.ts` gained 12 checks (39 total), and was
+      shown able to fail by deliberately disabling the ownership guard (4 failures), then restored.
+    - **Known limits:** quality on shoes and outerwear is unmeasured; outerwear can be chosen in
+      summer (seasonality is deferred); the wardrobe-size drift rule means a person adding 5 pieces
+      sees a few seconds of "putting outfits together" per item opened afterwards; outfits with and
+      without outerwear shift the tiles left because tiles aren't aligned by category; the "failed"
+      state doesn't retry by itself, only on the button; the failure path was tested by forcing the
+      stored state, not by a real outage.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

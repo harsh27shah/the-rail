@@ -32,6 +32,70 @@ Each line: what it is → why it's parked / what triggers doing it.
   consent screen out of Testing. Not yet checked: whether Google puts an "unverified app"
   warning or a user cap on this permission once it's out of Testing. Look that up first.
 
+## Paused, waiting on something
+
+- [ ] **Better "styles well with" suggestions (tops with bottoms only for now) — waiting on other
+  people's ratings.** Where it stands (2026-11-24): the rules and an AI stylist both agreed with
+  the owner's own ratings only about as well as a coin flip (rules 58%, colour-aware rules 51%,
+  AI stylist 48%; 60% for the AI once football-shirt pairs are left out). The owner's own taste
+  isn't a safe yardstick (he says some outfits others liked he wouldn't have chosen), so the
+  same 24 pairs were put on two photo sheets (`web/eval-data/photo-sheet-1.png`, `-2.png`) and
+  sent to a few other people to rate on "is this a well put-together outfit?". Next, once the
+  answers arrive: measure how much people agree with each other, then score the AI and the rules
+  against that agreement. If people mostly agree, tune toward them; where they split, that's
+  taste, and the owner's ratings (`web/eval-data/pairing-ratings.json`) are the yardstick for him.
+  Then: tag each item's cut (wide, tapered, fitted) and give the AI the owner's reasons as style
+  notes, tested on a fresh batch of pairs. Outerwear and shoes come after tops and bottoms.
+  Nothing from this is live yet. Experimental code: `src/lib/colour.ts`, `src/lib/stylist.ts`,
+  and `scripts/eval-pairings.ts`, `eval-stylist.ts`, `make-photo-sheet.ts` (all uncommitted).
+  **First four other people's answers are in** (`web/eval-data/second-opinions.json`, analysed by
+  `scripts/eval-consensus.ts`): people agree with each other much less than hoped (all five
+  raters identical on only 3 of 24 pairs; some pairs of raters gave flat opposites on 10), but
+  the four others were clearly positive on 10 pairs and clearly negative on 4. Against that
+  crowd view the AI stylist tracks it at 0.45 (0 = unrelated, 1 = identical order), roughly as
+  well as the typical single person tracks the rest (0.32, 0.40, 0.52); today's rules score
+  below zero (-0.23) and rules + colour -0.09. The owner's own ratings track the others at about
+  zero, and most of his "no" reasons (olive/brown "tree", green-on-green, fabric and volume
+  mismatches) were NOT shared by the others, so they must not be turned into general style
+  rules. Waiting for more raters before tuning anything (24 pairs and 4 raters would just be
+  fitted to); one rater's answers had two typos read as 14 and 24 (assumption noted in the file).
+
+## Planned: recommended outfits (ROs) on the item page — decisions of 2026-11-24
+
+An RO is a whole outfit (top, bottom, shoes, sometimes outerwear) built around one item, shown
+on that item's page. It replaces today's single-item "styles well with" suggestions.
+
+**Milestones**
+- [~] **M1:** show each outfit's items side by side (the cleaned item photos), with a one-line
+  "why this works". No model. **Built and tested on the owner's machine (2026-11-25), not live
+  yet** (PROJECT.md §5 item 27). Still to do before it replaces the grid hover pills: owner's
+  go-ahead to put it live, then a look at how it reads on the real wardrobe.
+- [ ] **M2:** show the outfit worn by a generic model (this is the PRD's generic-model P1
+  feature; needs a synthetic or licensed model, not a retailer's or stock photo).
+- [ ] **M3:** worn by the user's own personalised avatar (face and body data: handle with the
+  care of PROJECT.md §5 item 18).
+
+**Rules decided**
+- 4 outfits per item, best first, with some variety between them. Every outfit includes the item
+  it is built around, so for an outerwear item all four include it.
+- Outfits cut across the wardrobe: top, bottom and shoes at minimum, and for non-outerwear items
+  at least 1 and at most 3 of the 4 also include outerwear.
+- If the user owns no outerwear or no shoes, keep to what they have (tops and bottoms at least).
+- Leave out items flagged as duplicates.
+- Too-small wardrobe: de-prioritised for now; show a note that about 5 tops and 5 bottoms are
+  needed first (matches the existing coverage nudge).
+- Each outfit carries a one-line rationale.
+- The hover pills on the grid are removed once the outfits on the item page are built and
+  look right (not before).
+
+**Deliberately later**
+- [ ] Seasonality / weather in outfit choice (outerwear in summer is currently possible).
+- [ ] "Interested / not interested" on outfits, to see more and to personalise.
+- [ ] Create an outfit by describing the vibe.
+- [ ] Measuring "suggestions actually worn" (the north star) and wear logging. Not now, but every
+  week without wear data is data lost (PROJECT.md §2).
+- [ ] Validate shoe and outerwear pairings; so far only top-and-bottom pairs have been rated.
+
 ## From the PRD: "MVP laundry list and amendments"
 
 Source: the PRD's [MVP laundry list tab](https://docs.google.com/document/d/1kkXS5PqcRQm0tULCa8dwkfwHpVq71OBwgFfPsvhjhJ4/edit?tab=t.b5aj6z2petf8).
@@ -122,6 +186,12 @@ say so. Items you'd already struck through are listed as done.
 - [ ] **Custom email sender (SMTP).** Removes the "few sign-in emails an hour" ceiling and lets us
   go back to typed 6-digit codes, which fixes the "link must open in the same browser" problem
   (worst on the iOS home-screen app).
+- [ ] **Landing page for new users.** Today a signed-out visitor is sent straight to the sign-in
+  page, which only says the app is invite-only. A landing page would say what The Rail is and
+  show it, before anyone is asked to sign in. Open questions for when it's picked up: what
+  "getting in" means while sign-up is closed (request an invite? waitlist?), and what it
+  should show (screenshots of the rail and the new outfits view, the pitch from PROJECT.md
+  §1). Needs the sign-in rules in `src/proxy.ts` loosened for the landing page only.
 - [ ] **Invite your friend** to dogfood: `node scripts/create-user.mjs <email>`. Their AI usage is
   billed to you (see the limits item above).
 - [ ] **Make `items.user_id` required** once you're confident:
@@ -132,6 +202,13 @@ say so. Items you'd already struck through are listed as done.
 
 ## Photo ingestion — known gaps
 
+- [ ] **Duplicate detection is missing clear duplicates** (reported 2026-11-23). The quilted beige
+  jacket is an obvious duplicate by eye and the app didn't flag it. Not yet investigated.
+  Possible causes to check, none confirmed: the shortlist step only compares items that share
+  a colour word or a name word (so "beige" vs "cream" might never get compared), the shortlist
+  is capped at 5, an item still being cleaned up at the time is skipped, or the model simply
+  said "different". Workaround today: "Mark as duplicate" on the item. History worth
+  remembering: this feature already took four attempts to get right (PROJECT.md §5 item 13).
 - [ ] **Claude can undercount people.** If it reads a photo fine but says "one person" when there
   are two, the "which one is you?" picker never appears (the white-tee case may have been
   this). Option: run person detection on every photo — costs an extra Gemini call each and
@@ -152,6 +229,15 @@ say so. Items you'd already struck through are listed as done.
 - [ ] **Baseball cap catalogued as a Top** (once, on the rain-jacket photo). Accessories are meant to
   be skipped. Not obviously caused by recent changes. → Watch for a repeat; tighten the
   accessories rule if it does.
+- [ ] **Shoe photos aren't consistent: some show both shoes, some only one.** Wanted: every
+  footwear photo shows the pair, in one standard way, the same angle and arrangement every
+  time, floating on the neutral background like the PRD's "Zara homepage" look. Likely route:
+  a shoe-specific instruction in the photo-cleanup prompt (both shoes, same side-on view),
+  since today every category gets the same generic instruction. Count of affected items not
+  yet checked. One thing to rule out first: the double-view fix of 2026-11-16 (PROJECT.md §5
+  item 25) crops to the top block when it sees two similar blocks stacked above and below, so
+  a pair of shoes drawn one above the other could lose a shoe. It found no shoes in the
+  wardrobe at the time, but only the generator itself can be blamed for existing photos.
 - [ ] **Other image-generation glitches remain.** Besides the doubled view (now handled in code),
   Gemini sometimes still leaves the person in frame or cuts off a sleeve. "Not quite right?"
   is the safety net. → Add automatic detection only if these become common.

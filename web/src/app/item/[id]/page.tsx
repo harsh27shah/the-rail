@@ -3,8 +3,48 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getItem, getItems } from "@/lib/items";
 import { pairingsFor } from "@/lib/pairings";
+import { eligibleItems, isStale, wardrobeReadiness } from "@/lib/outfits";
+import type { Item } from "@/lib/types";
+import { isBeingGenerated, loadSet } from "@/lib/outfit-store";
 import { ImageCorrection } from "@/components/ImageCorrection";
 import { MarkDuplicate } from "@/components/MarkDuplicate";
+import { OutfitsSection, type OutfitsState } from "@/components/OutfitsSection";
+
+// Working out a piece's outfits happens from this page (see outfit-actions.ts) and takes
+// several seconds, so give it room.
+export const maxDuration = 60;
+
+/** What the Outfits section should show for this item. Reads only: nothing is generated here. */
+async function outfitsStateFor(userId: string, item: Item, allItems: Item[]): Promise<OutfitsState | null> {
+  try {
+    const eligible = eligibleItems(allItems);
+    const readiness = wardrobeReadiness(eligible, item);
+    if (readiness.kind === "too-small") return { ...readiness };
+
+    const saved = await loadSet(userId, item.id);
+    if (saved?.status === "ready" && !isStale(saved, eligible, item.id)) {
+      const byId = new Map(allItems.map((i) => [i.id, i]));
+      const outfits = saved.outfits
+        .filter((o) => o.itemIds.every((id) => byId.has(id)))
+        .map((o) => ({
+          why: o.why,
+          tiles: o.itemIds.map((id) => {
+            const it = byId.get(id)!;
+            return { id: it.id, name: it.name, category: it.category, imageUrl: it.imageUrl, isHero: it.id === item.id };
+          }),
+        }));
+      if (outfits.length) return { kind: "ready", outfits };
+    }
+    if (isBeingGenerated(saved)) return { kind: "waiting" };
+    if (saved?.status === "failed") return { kind: "failed" };
+    return { kind: "generate" };
+  } catch (e) {
+    // Most likely the outfit_sets table hasn't been created yet. Fall back to the old
+    // single-item suggestions rather than breaking the page.
+    console.error("[outfits] couldn't read saved outfits:", e);
+    return null;
+  }
+}
 
 export default async function ItemDetailPage({
   params,
@@ -17,7 +57,8 @@ export default async function ItemDetailPage({
   if (!item) notFound();
 
   const allItems = await getItems(user.id);
-  const pairings = pairingsFor(item, allItems);
+  const outfitsState = await outfitsStateFor(user.id, item, allItems);
+  const pairings = outfitsState ? [] : pairingsFor(item, allItems);
   const dots = "●".repeat(item.formality || 1) + "○".repeat(Math.max(0, 5 - (item.formality || 1)));
 
   return (
@@ -97,24 +138,28 @@ export default async function ItemDetailPage({
         </div>
       </div>
 
-      <div className="pairing-section">
-        <h3>Styles well with</h3>
-        {pairings.length ? (
-          <div className="pairing-grid">
-            {pairings.map((p) => (
-              <Link key={p.id} href={`/item/${p.id}`} className="pairing-item">
-                <div className="frame">{p.imageUrl && <img src={p.imageUrl} alt="" />}</div>
-                <div className="name">{p.name}</div>
-                <div className="sub">
-                  {p.category} · {p.color}
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="pairing-empty">No pairing suggestions yet for this piece.</p>
-        )}
-      </div>
+      {outfitsState ? (
+        <OutfitsSection key={outfitsState.kind} itemId={item.id} state={outfitsState} />
+      ) : (
+        <div className="pairing-section">
+          <h3>Styles well with</h3>
+          {pairings.length ? (
+            <div className="pairing-grid">
+              {pairings.map((p) => (
+                <Link key={p.id} href={`/item/${p.id}`} className="pairing-item">
+                  <div className="frame">{p.imageUrl && <img src={p.imageUrl} alt="" />}</div>
+                  <div className="name">{p.name}</div>
+                  <div className="sub">
+                    {p.category} · {p.color}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="pairing-empty">No pairing suggestions yet for this piece.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

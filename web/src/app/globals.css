@@ -1051,6 +1051,110 @@ textarea {
   font-size: 13px;
 }
 
+/* Recommended outfits on the item page (M1): each outfit is its pieces side by side, the item
+   being viewed outlined in cobalt, with one line on why it works underneath. */
+.outfits-section {
+  margin-top: 46px;
+}
+.outfits-section h3 {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.outfit-list {
+  display: grid;
+  gap: 38px;
+}
+.outfit {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+}
+.outfit-num {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding-top: 2px;
+}
+.outfit-tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 4), minmax(0, 170px));
+  gap: 14px;
+}
+.outfit-tile {
+  display: block;
+  min-width: 0;
+}
+.outfit-tile .frame {
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  background: var(--card);
+  overflow: hidden;
+  transition: transform 0.18s;
+}
+.outfit-tile.is-hero .frame {
+  border: 2px solid var(--accent);
+}
+a.outfit-tile {
+  cursor: pointer;
+}
+a.outfit-tile:hover .frame,
+a.outfit-tile:focus-visible .frame {
+  transform: translateY(-4px);
+}
+.outfit-tile .name {
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outfit-tile .sub {
+  font-family: var(--font-mono), monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.outfit-tile.is-hero .sub {
+  color: var(--accent);
+  margin-top: 7px;
+}
+.outfit-why {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 62ch;
+}
+.outfits-note {
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 62ch;
+}
+.outfits-working {
+  animation: outfits-pulse 1.6s ease-in-out infinite;
+}
+@keyframes outfits-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (max-width: 560px) {
+  .outfit {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .outfit-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

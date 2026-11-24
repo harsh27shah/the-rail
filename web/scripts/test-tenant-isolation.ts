@@ -12,6 +12,7 @@
 // (`--conditions=react-server` lets the app's `server-only` imports load outside Next.)
 
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { claimGeneration, loadSet, saveFailed, saveReady } from "@/lib/outfit-store";
 import {
   createItem,
   deleteItems,
@@ -165,6 +166,29 @@ async function main() {
   check("a refresh-only save for A leaves B alone", (await loadTokens(B))?.accessToken === "b-access");
   check("…and keeps A's refresh token", (await loadTokens(A))?.refreshToken === "a-refresh");
 
+  console.log("\nSaved outfits");
+  // fresh items: earlier tests in this file delete a1 and b1
+  const o1 = await createItem(A, input("A's outfit shirt"), null);
+  const o2 = await createItem(A, input("A's other outfit shirt"), null);
+  const p1 = await createItem(B, input("B's outfit shirt"), null);
+  const someOutfits = [{ itemIds: [o1], why: "Test." }];
+  check("A can claim and save outfits for A's own item", (await claimGeneration(A, o1)) === true);
+  await saveReady(A, o1, someOutfits, 2);
+  check("A reads them back", (await loadSet(A, o1))?.outfits.length === 1);
+  check("B can't read A's saved outfits (same item id, other account)", (await loadSet(B, o1)) === null);
+  const refuses = async (fn: () => Promise<unknown>) => { try { await fn(); return false; } catch (e) { return e instanceof Error && /isn't yours/.test(e.message); } };
+  check("claimGeneration(A, B's item) is refused", await refuses(() => claimGeneration(A, p1)));
+  check("saveReady(A, B's item) is refused", await refuses(() => saveReady(A, p1, someOutfits, 2)));
+  check("saveFailed(A, B's item) is refused", await refuses(() => saveFailed(A, p1, "x")));
+  const { data: strayRows } = await admin!.from("outfit_sets").select("user_id,hero_item_id").eq("hero_item_id", p1);
+  check("…and nothing was written against B's item", (strayRows ?? []).length === 0, JSON.stringify(strayRows));
+  check("A's claim doesn't block B claiming B's own item", (await claimGeneration(B, p1)) === true);
+  check("a second live claim on the same item is refused", (await claimGeneration(B, p1)) === false);
+  check("A's saved outfits are untouched by B's activity", (await loadSet(A, o1))?.status === "ready");
+  await saveReady(A, o2, someOutfits, 2);
+  await deleteItems(A, [o2]);
+  check("deleting an item takes its saved outfits with it", (await loadSet(A, o2)) === null);
+
   console.log("\nRow-level security (the second layer)");
   const url = process.env.SUPABASE_URL!;
   const anon = process.env.SUPABASE_ANON_KEY;
@@ -179,6 +203,11 @@ async function main() {
     });
     const rows2 = res2.ok ? ((await res2.json()) as unknown[]) : [];
     check("the public anon key can read zero rows from google_oauth_tokens", rows2.length === 0, `got ${rows2.length}`);
+    const res3 = await fetch(`${url}/rest/v1/outfit_sets?select=user_id&limit=5`, {
+      headers: { apikey: anon, Authorization: `Bearer ${anon}` },
+    });
+    const rows3 = res3.ok ? ((await res3.json()) as unknown[]) : [];
+    check("the public anon key can read zero rows from outfit_sets", rows3.length === 0, `got ${rows3.length}`);
   } else {
     console.log("  (skipped — SUPABASE_ANON_KEY isn't set)");
   }

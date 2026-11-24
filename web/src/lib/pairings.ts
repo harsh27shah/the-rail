@@ -1,3 +1,4 @@
+import { colourProfile, colourScore } from "./colour";
 import type { Item } from "./types";
 
 /**
@@ -34,7 +35,9 @@ function isLoudPattern(pattern: Item["pattern"]): boolean {
   return pattern !== "solid";
 }
 
-function score(a: Item, b: Item): number {
+/** How well `b` goes with `a`, higher = better. Exported so the evaluation harness
+ * (scripts/eval-pairings.ts) scores exactly what ships. */
+export function pairScore(a: Item, b: Item): number {
   let s = 5 - Math.abs((a.formality || 3) - (b.formality || 3)); // 0-5, higher = closer formality
   s += isLoudPattern(a.pattern) && isLoudPattern(b.pattern) ? -3 : 2; // avoid clashing patterns
   const sharesSeason = a.seasons.some((season) => b.seasons.includes(season));
@@ -42,11 +45,34 @@ function score(a: Item, b: Item): number {
   return s;
 }
 
+export interface ScorerOptions {
+  /** Treat "textured" (a ribbed knit, say) as plain rather than as a loud pattern. Only
+   * striped / checked / printed pieces clash with each other. */
+  texturedIsPlain?: boolean;
+  /** Add colour fit (lib/colour.ts) to the score. */
+  colour?: boolean;
+}
+
+/** Candidate versions of the scoring rules, for the evaluation harness. With no options this
+ * is identical to `pairScore`. Nothing here is used by the live app until it is shown to beat
+ * `pairScore` on scripts/eval-pairings.ts and wired into `pairingsFor` on purpose. */
+export function makePairScorer(opts: ScorerOptions): (a: Item, b: Item) => number {
+  const loud = (p: Item["pattern"]) =>
+    opts.texturedIsPlain ? p === "striped" || p === "checked" || p === "printed" : isLoudPattern(p);
+  return (a, b) => {
+    let s = 5 - Math.abs((a.formality || 3) - (b.formality || 3));
+    s += loud(a.pattern) && loud(b.pattern) ? -3 : 2;
+    s += a.seasons.some((season) => b.seasons.includes(season)) ? 1 : 0;
+    if (opts.colour) s += colourScore(colourProfile(a.palette), colourProfile(b.palette));
+    return s;
+  };
+}
+
 /** Top N pairing suggestions for `item`, out of `pool` (the rest of the wardrobe). */
 export function pairingsFor(item: Item, pool: Item[], limit = 4): Item[] {
   return pool
     .filter((other) => other.id !== item.id && complementary(item, other))
-    .map((other) => ({ other, score: score(item, other) }))
+    .map((other) => ({ other, score: pairScore(item, other) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ other }) => other);

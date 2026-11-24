@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Private evaluation data: wardrobe photos, ratings and other people's answers (see PROJECT.md section 5, item 27). Stays on this computer.
+eval-data/

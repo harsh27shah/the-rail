@@ -41,15 +41,40 @@ Each line: what it is → why it's parked / what triggers doing it.
   stored original, not yet through the live upload). Delete any leftover sweater-only
   "Untitled" item first.
 
-- [ ] **Google Photos connection expires every week.** The Google consent screen is still in
-  "Testing" mode, where connections die after about 7 days (seen 2026-11-23). The app now
-  recovers by sending you back through Google (PROJECT.md §5 item 26), but you'd still hit
-  that screen weekly, and so would every friend. Fix is on the Google Cloud side: move the
-  consent screen out of Testing. Not yet checked: whether Google puts an "unverified app"
-  warning or a user cap on this permission once it's out of Testing. Look that up first.
-  **Matters more than first thought:** on an iPhone the normal photo picker only shows photos saved
-  on the phone, not Google Photos, so this import is the only way for someone whose photos live in
-  Google Photos to bring them in (the Add page's tips now point them to it).
+- [ ] **Google Photos import: improve it properly once the app is published (PARKED, owner's call
+  2026-11-25).** Held off on purpose: it may be a smaller use case than assumed until the app is
+  published, after which it can be targeted more scalably. What was learned, so it isn't redone:
+  - **The weekly reconnect.** Google's docs confirm apps in "Testing" get permissions that expire
+    after 7 days (an exception covers apps using only name, email and profile, which is why plain
+    Google sign-in is unaffected). The app recovers by sending the person back through Google
+    (PROJECT.md §5 item 26). The fix is publishing the app out of Testing.
+  - **Friends can't use the import yet.** Checked in Google Cloud on 2026-11-25: publishing status
+    "Testing", user type External, one test user (the owner). In Testing only listed test users can
+    authorise, up to 100, so the import fails for any friend (and for the owner's second account)
+    unless their email is added as a test user. Plain Google sign-in works for everyone, because it
+    only uses the basic permissions.
+  - **What publishing would cost is not yet known.** Google's docs don't label the Photos picker
+    permission sensitive or restricted, but say apps using the Photos APIs must pass OAuth
+    verification. If it counts as sensitive: friends see an "unverified app" warning, a lifetime cap
+    of 100 users applies, and full verification needs a privacy policy URL and a verified domain
+    (the app is on a `vercel.app` address, which may need checking). The console only shows the
+    category once the permission is added under Data access (a reversible setting, not done).
+    Publishing also needs an app name (blank today) on the Branding page; privacy policy, home page
+    and domain are blank too.
+  - **Opening the Google Photos app on iPhone** instead of a browser tab: Google documents no way to
+    force it (the picker is a web link; no deep link, no return-to-app redirect). Whether an iPhone
+    hands the link to the app depends on iOS "universal links", which work best from a real tapped
+    link in Safari and often not from Chrome or a script-opened tab (our code uses `window.open`).
+    Cheap experiments when picked up: make the second tap a real link; check for the photos the
+    moment the page regains focus (iPhones pause background tabs); try Safari against Chrome on a
+    real iPhone. No guarantee it can work.
+  - **Why it still matters:** on an iPhone the normal photo picker only shows photos saved on the
+    phone, not Google Photos, so this import is the only route for someone whose photos live in
+    Google Photos.
+  - **The Add page tip about it was removed (2026-11-25)**, because a friend who isn't a Google test
+    user would hit an error. The "Import from Google Photos" button itself is still shown on the Add
+    page and will fail for such a friend. Restore the tip (and fix or hide the button) when the app is
+    published.
 
 ## Paused, waiting on something
 

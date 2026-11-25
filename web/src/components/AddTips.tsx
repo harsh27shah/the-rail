@@ -38,10 +38,6 @@ export function AddTips({ pieceCount }: { pieceCount: number }) {
           skipped.
         </li>
         <li>
-          <b>Photos in Google Photos?</b> Use &ldquo;Import from Google Photos&rdquo; below. Your
-          phone&rsquo;s own picker may only show the photos saved on the phone itself.
-        </li>
-        <li>
           <b>Keep this page open while it reads.</b> Each photo takes a few seconds.
         </li>
       </ul>

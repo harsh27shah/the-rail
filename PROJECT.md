@@ -1278,15 +1278,16 @@ Suggested build order:
       selfies give several pieces; photos of just you are quickest, and if someone else is in the shot
       you're asked to tap which one is you (NOT a "one person per photo" rule: the owner caught that);
       good light and the whole piece in view; only tops, bottoms, outerwear and shoes are catalogued
-      (accessories are skipped); photos stored in Google Photos should use the import button; keep the
-      page open while it reads.
+      (accessories are skipped); keep the page open while it reads.
     - **Correction (owner, 2026-11-25): the Google Photos import stays visible on phones.** First
       version hid it on touch devices, on the claim that a phone's photo picker already reaches Google
       Photos. That is true on Android but NOT on an iPhone, where the picker shows only photos saved on
       the phone (and the Files app, which has Google Drive but not Google Photos). Someone whose photos
       live in Google Photos would have had no way in. The import was already confirmed working on an
-      iPhone (item 22). The Add tips now say when to use it. This makes the weekly Google connection
-      expiry (BACKLOG) matter more.
+      iPhone (item 22). A tip pointing people to it was added, then **removed the same day**: until the
+      app is published out of Google's "Testing" status, only listed test users (just the owner) can
+      use the import, so a friend following the tip would hit an error. The button itself is still
+      shown. Improving the Google Photos flows is parked until the app is published (BACKLOG).
     - **Checked** in a real browser on a throwaway account: empty account (welcome shown; strip, rail
       and search gone), Add page (tips open, goal line, Google button visible), the same account at 12
       pieces (normal storefront; tips folded; no goal line), and the welcome at phone width (one

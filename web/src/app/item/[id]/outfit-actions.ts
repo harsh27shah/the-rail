@@ -5,6 +5,7 @@ import { getItem, getItems } from "@/lib/items";
 import { eligibleItems, generateOutfits, isStale, wardrobeReadiness } from "@/lib/outfits";
 import { claimGeneration, loadSet, saveFailed, saveReady } from "@/lib/outfit-store";
 import { claudeOutfitModel } from "@/lib/stylist";
+import { trackUsageFor } from "@/lib/usage";
 
 export type GenerateOutfitsResult =
   | { kind: "ready" }
@@ -21,6 +22,7 @@ const FRIENDLY_FAILURE = "Couldn't put outfits together just now. Try again in a
  */
 export async function generateOutfitsAction(itemId: string): Promise<GenerateOutfitsResult> {
   const user = await requireUser();
+  trackUsageFor(user.id);
   const hero = await getItem(user.id, itemId);
   if (!hero) return { kind: "failed", message: "That piece isn't on the rail any more." };
 

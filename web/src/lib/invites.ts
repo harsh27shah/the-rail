@@ -36,6 +36,7 @@ export async function inviteEmail(raw: string): Promise<InviteResult> {
 }
 
 export interface Member {
+  id: string;
   email: string;
   joined: string;
   lastSignIn: string | null;
@@ -50,6 +51,7 @@ export async function listMembers(): Promise<Member[]> {
     if (error || !data) break;
     for (const u of data.users) {
       out.push({
+        id: u.id,
         email: u.email ?? "(no email)",
         joined: u.created_at,
         lastSignIn: u.last_sign_in_at ?? null,

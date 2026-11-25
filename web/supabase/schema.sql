@@ -124,3 +124,39 @@ create table if not exists outfit_sets (
   primary key (user_id, hero_item_id)
 );
 alter table outfit_sets enable row level security;
+
+-- Per-person AI spend tracking (PROJECT.md §5 item 30). One row per AI call: who it was for, what
+-- kind of call, how big, and an ESTIMATED cost (list prices, see lib/usage.ts). `user_id` is kept
+-- (set to null) if the person's account is deleted, so the owner's totals stay honest. RLS is on
+-- with no policies, like every other table: the public anon key can read nothing.
+create table if not exists ai_usage (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid references auth.users(id) on delete set null,
+  provider text not null check (provider in ('claude', 'gemini')),
+  model text not null,
+  action text not null,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  cost_usd numeric(12, 6) not null default 0
+);
+create index if not exists ai_usage_user_created on ai_usage (user_id, created_at);
+alter table ai_usage enable row level security;
+
+-- The totals the Invite page shows: this calendar month (UTC) and all time, per person.
+-- Callable only with the server's service key; the public anon key cannot run it.
+create or replace function ai_spend_by_user()
+returns table (user_id uuid, month_usd numeric, total_usd numeric, month_calls bigint)
+language sql
+stable
+as $$
+  select
+    u.user_id,
+    coalesce(sum(u.cost_usd) filter (where u.created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'), 0),
+    coalesce(sum(u.cost_usd), 0),
+    count(*) filter (where u.created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc')
+  from ai_usage u
+  group by u.user_id;
+$$;
+revoke all on function ai_spend_by_user() from public, anon, authenticated;
+grant execute on function ai_spend_by_user() to service_role;

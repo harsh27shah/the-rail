@@ -1,6 +1,7 @@
 import "server-only";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { normalizeProductPhoto } from "./product-photo";
+import { recordGemini } from "./usage";
 
 /**
  * Garment extraction — takes a photo (which may show a person wearing the item, a messy
@@ -72,6 +73,7 @@ export async function extractGarmentImage(
       responseModalities: [Modality.IMAGE],
     },
   });
+  await recordGemini("background-removal", MODEL, response);
 
   const image = firstImagePart(response);
   return image ? normalizeProductPhoto(image.data, image.mimeType) : null;
@@ -117,6 +119,7 @@ export async function correctGarmentImage(
       responseModalities: [Modality.IMAGE],
     },
   });
+  await recordGemini("correction", MODEL, response);
 
   const image = firstImagePart(response);
   return image ? normalizeProductPhoto(image.data, image.mimeType) : null;
@@ -180,6 +183,7 @@ export async function detectPeople(base64Image: string, mimeType: string): Promi
     model: MODEL,
     contents: [{ text: PEOPLE_DETECT_PROMPT }, { inlineData: { data: base64Image, mimeType } }],
   });
+  await recordGemini("find-people", MODEL, response);
   const text = (response.candidates?.[0]?.content?.parts ?? [])
     .map((p) => p.text)
     .filter((t): t is string => !!t)

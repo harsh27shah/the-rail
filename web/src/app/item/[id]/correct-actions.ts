@@ -15,6 +15,7 @@ import {
   updateItem,
 } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
+import { trackUsageFor } from "@/lib/usage";
 
 /**
  * Regenerates an item's photo based on feedback about what's wrong with the current one.
@@ -30,6 +31,7 @@ export async function correctImageAction(
   feedback: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await requireUser();
+  trackUsageFor(user.id);
   if (!feedback.trim()) return { ok: false, error: "Add a note about what's wrong first" };
 
   const item = await getItem(user.id, id);

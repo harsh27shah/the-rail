@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { recordClaude } from "./usage";
 import sharp, { type OverlayOptions } from "sharp";
 import type { Candidate, ModelFn, Plan, RawOutfit, Slot } from "./outfits";
 
@@ -196,6 +197,7 @@ export function claudeOutfitModel(): ModelFn {
     content.push({ type: "text", text: `HERO: ${plan.hero.name} (${plan.hero.color}; ${plan.hero.material || "fabric unknown"}; ${plan.hero.pattern}; formality ${plan.hero.formality || 3}/5)\n\n${listing.join("\n\n")}\n\n${outfitPrompt(plan, feedback)}` });
 
     const message = await client().messages.create({ model: "claude-sonnet-5", max_tokens: 1500, messages: [{ role: "user", content }] });
+    await recordClaude("outfits", "claude-sonnet-5", message.usage);
     const text = message.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n");
     return { outfits: parseOutfits(text), usage: { input: message.usage.input_tokens, output: message.usage.output_tokens } };
   };

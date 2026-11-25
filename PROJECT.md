@@ -1168,7 +1168,7 @@ Suggested build order:
       Supabase, so it needs Supabase's storage reachable from the person's network (same as the
       photos already shown on the site).
 
-29. 🟡 **Sign in with Google, and an owner-only invite page — built and tested locally, not live.**
+29. ✅ **Sign in with Google, and an owner-only invite page — live, and confirmed on the live site.**
     Replaces "type your email, open the emailed link" as the main way in (item 23); the emailed
     link stays as a small fallback under "No Google account?".
     - **Google sign-in.** "Continue with Google" on `/login` goes through Supabase's Google
@@ -1196,8 +1196,44 @@ Suggested build order:
       running app: signed-out visitors bounced from `/invite`; the Google button reaches Google's
       account chooser with the right return address; a non-owner gets a 404 and sees no Invite
       link; the owner invites an email and the list updates. All throwaway accounts deleted.
-      **Not tested here:** a full Google sign-in (needs a real Google login, so the owner's first
-      real sign-in is that test).
+      **Full Google sign-in:** couldn't be tested from this end (needs a real Google login); the owner
+      then signed in on the live site with their own Google account and it worked.
+
+30. 🟡 **Per-person AI spend tracking — built and tested locally, not live.** Every Claude and Gemini
+    call writes one row to a new `ai_usage` table (who it was for, what kind of call, tokens, and an
+    **estimated** cost); the Invite page (item 29) shows each person's spend this month, all time, and
+    their number of AI calls, plus a total. This is tracking only: nothing stops a person at a limit yet
+    (see `BACKLOG.md`, "Per-user usage limits").
+    - **Why it exists.** Both providers only show account-wide totals, because every call uses the
+      owner's one key. Per-person numbers have to come from the app itself.
+    - **How.** `lib/usage.ts` holds the price estimates, the recorder and the totals; each AI function
+      logs its own reply (`read-photo`, `find-people`, `background-removal`, `duplicate-check`,
+      `correction`, `correction-retag`, `outfits`). Who a call is for travels in an
+      `AsyncLocalStorage` tag set by each Server Action right after `await requireUser()`
+      (`trackUsageFor`); the background tasks that run after an upload re-apply it
+      (`withUsageUser`). A call with no tag is still recorded, with no person, so spend is never lost.
+      Recording never throws into the app. The tag must be set *after* the first await (see the code
+      comment): set before any await it would also tag the caller.
+    - **Estimates, not invoices.** Prices are list-price assumptions at the top of `lib/usage.ts`
+      (Claude $3 / $15 per million tokens in / out; Gemini $0.30 in, $30 per million image-output
+      tokens). A real upload cost about 1.7 cents to read plus 4 cents for the background removal.
+      Compare the Invite page's total with the real Anthropic and Google bills now and then and adjust.
+    - **Database step (run by hand):** the `ai_usage` table and the `ai_spend_by_user()` function at the
+      end of `supabase/schema.sql` (done by the owner). RLS is on with no policies; the totals function
+      can only be run with the server's key. Deleting an account keeps its rows (person set to none) so
+      totals stay honest. Until the table exists the Invite page says so instead of breaking.
+    - **Verified:** `scripts/test-usage.ts` (23 checks against the real database: cost maths, tags
+      surviving waits and not leaking between concurrent requests, per-person totals, this-month vs
+      all-time, untagged calls kept, bad writes never throw, the public key reading nothing). In the
+      running app on a throwaway account: a real photo upload logged both of its calls (the reading, and
+      the background removal that runs after the upload) against that account, and the Invite page showed
+      them. Throwaway accounts, photos and rows deleted afterwards. **Not exercised end to end:** the
+      outfits, "Not quite right?" and duplicate-check calls (same tagging pattern as the upload, but not
+      driven through the browser).
+    - **Spend limits set the same day:** Anthropic monthly limit $25, email alert at $10, $50 prepaid
+      credit bought (balance $53.84, auto-reload off). Google: $15 monthly budget alert (emails only),
+      $50 prepaid Gemini credit (balance $53.64, auto-reload off). On both, the prepaid balance is the real
+      hard stop; when it runs out, that provider's calls stop for everyone.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

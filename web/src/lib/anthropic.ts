@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { recordClaude } from "./usage";
 import { CATEGORIES } from "./types";
 
 /**
@@ -243,6 +244,7 @@ export async function retagItem(
       },
     ],
   });
+  await recordClaude("correction-retag", "claude-sonnet-5", message.usage);
   const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
@@ -316,6 +318,7 @@ export async function tagPhoto(
           },
         ],
       });
+      await recordClaude("read-photo", "claude-sonnet-5", message.usage);
       const text = message.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text)
@@ -419,6 +422,7 @@ export async function compareGarmentPhotos(a: GarmentPhotoPair, b: GarmentPhotoP
       },
     ],
   });
+  await recordClaude("duplicate-check", "claude-sonnet-5", message.usage);
   const text = message.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)

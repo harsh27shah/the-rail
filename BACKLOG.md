@@ -184,7 +184,10 @@ say so. Items you'd already struck through are listed as done.
 
 - [ ] **Per-user usage limits.** Every photo triggers several AI calls (tagging, person
   detection, image generation, up to five duplicate comparisons), all billed to you. No cap
-  per person today. → Must happen before strangers have accounts.
+  per person today. → Must happen before strangers have accounts. **Half done 2026-11-25:** spend is
+  now *tracked* per person (PROJECT.md §5 item 30, shown on the Invite page); the *limit* itself
+  (stop a person once they pass a monthly amount) is not built. Provider-level caps are set too:
+  Anthropic $25/month plus prepaid credit; Google $50 prepaid credit.
 - [ ] **Custom email sender (SMTP).** Removes the "few sign-in emails an hour" ceiling and lets us
   go back to typed 6-digit codes, which fixes the "link must open in the same browser" problem
   (worst on the iOS home-screen app).
@@ -281,6 +284,13 @@ say so. Items you'd already struck through are listed as done.
   occasion, generic-model visualisation, favourite outfits). Added 2026-11-17.
 - [ ] **Pairing suggestions are rule-based.** Revisit whether AI-computed pairings are worth the
   cost once there's a real wardrobe to judge them on.
+
+## User delight
+
+- [ ] **A home page header that feels fresh every time the app opens.** Greet the person by name
+  ("Welcome, Harsh"), with a slogan that rotates on each visit. The same space could also show
+  today's temperature (a lead-in to the weather-based outfit-of-the-day, P1). Note: we hold
+  only an email address today, so we'd need to ask for a first name.
 
 ## Tiny cleanups
 

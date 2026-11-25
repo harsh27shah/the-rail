@@ -9,6 +9,7 @@ import { analysePhoto, BLANK_GARMENT, normalizeUpload, shrinkForAi } from "@/lib
 import { UploadRejected, createUploadTarget, discardUpload, isOwnUploadPath, readUpload } from "@/lib/incoming";
 import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
+import { trackUsageFor, withUsageUser } from "@/lib/usage";
 
 // A "same" verdict below this confidence isn't flagged — Claude's own calibration puts
 // genuine matches at 0.75+ and confidently-different pairs at 0.98+ (see PROJECT.md §5's
@@ -68,6 +69,7 @@ export async function discardUploadAction(path: string): Promise<void> {
  */
 export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult> {
   const user = await requireUser();
+  trackUsageFor(user.id);
   const uploadPath = String(formData.get("uploadPath") ?? "");
   if (!isOwnUploadPath(user.id, uploadPath)) {
     return { kind: "error", error: "that photo didn't come through" };
@@ -121,6 +123,7 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
  */
 export async function addPhotoWithPersonAction(formData: FormData): Promise<AddPhotoResult> {
   const user = await requireUser();
+  trackUsageFor(user.id);
   const uploadPath = String(formData.get("uploadPath") ?? "");
   const boxRaw = formData.get("box");
   if (!isOwnUploadPath(user.id, uploadPath)) {
@@ -205,7 +208,7 @@ async function catalogueGarments(
     ids.push(id);
 
     const description = [color, name].filter(Boolean).join(" ") || "garment";
-    after(async () => {
+    after(() => withUsageUser(userId, async () => {
       // Extraction first — the duplicate check wants this item's isolated product photo
       // alongside its raw upload (see compareGarmentPhotos' comment for why it uses both).
       let extracted: { data: string; mimeType: string } | null = null;
@@ -246,7 +249,7 @@ async function catalogueGarments(
       } catch (e) {
         console.error("Duplicate check failed for item", id, e);
       }
-    });
+    }));
   }
 
   return { kind: "added", ids };

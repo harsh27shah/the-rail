@@ -695,6 +695,14 @@ textarea {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
+.invite-spend {
+  flex-basis: 100%;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
 .invite-meta {
   font-family: var(--font-mono), monospace;
   font-size: 10px;

@@ -25,7 +25,7 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: "The Rail",
-  description: "A personal wardrobe you can browse like a shop you already own.",
+  description: "An AI fashion assistant that helps you find your style.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-192.png",

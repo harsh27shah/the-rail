@@ -1199,7 +1199,7 @@ Suggested build order:
       **Full Google sign-in:** couldn't be tested from this end (needs a real Google login); the owner
       then signed in on the live site with their own Google account and it worked.
 
-30. 🟡 **Per-person AI spend tracking — built and tested locally, not live.** Every Claude and Gemini
+30. ✅ **Per-person AI spend tracking — live, and confirmed on the live site (the owner saw the spend lines on the Invite page).** Every Claude and Gemini
     call writes one row to a new `ai_usage` table (who it was for, what kind of call, tokens, and an
     **estimated** cost); the Invite page (item 29) shows each person's spend this month, all time, and
     their number of AI calls, plus a total. This is tracking only: nothing stops a person at a limit yet
@@ -1234,6 +1234,31 @@ Suggested build order:
       credit bought (balance $53.84, auto-reload off). Google: $15 monthly budget alert (emails only),
       $50 prepaid Gemini credit (balance $53.64, auto-reload off). On both, the prepaid balance is the real
       hard stop; when it runs out, that provider's calls stop for everyone.
+
+31. 🟡 **Landing page for signed-out visitors — built and checked locally, not live.** `/login` (where
+    signed-out visitors already land) is now the front page. **Positioning (owner's call, 2026-11-25):**
+    "an AI fashion assistant that helps you find your style"; the value is removing decision fatigue
+    from everyday styling and helping people shop smarter (shopping is labelled "coming"). Sections:
+    hero, "what it's for", how it works in three steps, real outfits for one piece, "working today"
+    (easy wardrobe ingestion; recommended outfits) against "coming next, not built yet" (outfits that
+    learn your taste, trip planning, style inspiration, photorealistic avatars, smarter shopping), a
+    privacy section, and the Google sign-in button at the top and bottom (`components/Landing.tsx`,
+    `app/login/page.tsx`, styles at the end of `globals.css`). Meant to be enough for someone who has
+    never heard of the app to decide whether to sign in, once there are more than ~10 users.
+    - **Everything shown is real.** The 16 product photos are clean catalogue shots of the owner's own
+      pieces (no people in them), copied small (~244 KB total) into `public/landing/`; the tag card is
+      one real piece's catalogued details; the three outfits are real output of the recommended-outfits
+      feature for that piece. The "planned" list is labelled as not built. Keep it honest as features
+      ship (move items across) or change.
+    - **Privacy copy is deliberately narrow.** It says only the owner of an account can see a wardrobe
+      in the app, that each photo is sent to Anthropic and Google to be read, and that other people in
+      a photo aren't kept. It does NOT claim private storage, because wardrobe photos are in a public
+      bucket (see `BACKLOG.md`).
+    - **Checked:** desktop and a 390px-wide view in a real browser: no sideways scroll, single column,
+      consistent outfit tile sizes, normal-width buttons. Error messages (invite, Google, link) still
+      show beside the first button. **Not checked:** a real phone, and it hasn't been seen by anyone else.
+    - **Not done (the next chunks):** the first-run onboarding on the empty rail and Add page, and a
+      prompt after the first upload pointing to the outfits.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

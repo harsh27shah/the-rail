@@ -14,6 +14,19 @@ function GoogleG() {
   );
 }
 
+/** The "Continue with Google" button on its own, so the landing page can repeat it further down. */
+export function GoogleButton() {
+  return (
+    <form action={signInWithGoogleAction}>
+      <div className="actions">
+        <button type="submit" className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <GoogleG /> Continue with Google
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function LoginForm() {
   const [showEmail, setShowEmail] = useState(false);
   const [email, setEmail] = useState("");
@@ -34,13 +47,7 @@ export function LoginForm() {
 
   return (
     <div>
-      <form action={signInWithGoogleAction}>
-        <div className="actions">
-          <button type="submit" className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-            <GoogleG /> Continue with Google
-          </button>
-        </div>
-      </form>
+      <GoogleButton />
 
       {!showEmail && (
         <p className="hint" style={{ marginTop: 18 }}>

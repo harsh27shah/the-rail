@@ -188,6 +188,13 @@ say so. Items you'd already struck through are listed as done.
   now *tracked* per person (PROJECT.md §5 item 30, shown on the Invite page); the *limit* itself
   (stop a person once they pass a monthly amount) is not built. Provider-level caps are set too:
   Anthropic $25/month plus prepaid credit; Google $50 prepaid credit.
+- [ ] **Wardrobe photos sit in a public storage bucket.** Anyone with a photo's exact address can
+  open it, although the addresses aren't listed or guessable (they include a random id). The app
+  only shows a person their own pieces, and the temporary upload bucket is private, but the stored
+  wardrobe photos are not. Found 2026-11-25 while writing the landing page's privacy copy, which
+  deliberately does not claim private storage. Decide before strangers join: make the bucket private
+  and serve photos through short-lived links, or accept and state it. The landing page's privacy
+  wording (`components/Landing.tsx`) must match whatever is decided.
 - [ ] **Custom email sender (SMTP).** Removes the "few sign-in emails an hour" ceiling and lets us
   go back to typed 6-digit codes, which fixes the "link must open in the same browser" problem
   (worst on the iOS home-screen app).

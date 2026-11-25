@@ -28,7 +28,8 @@ export default async function AddPage() {
           gpPickerUri/gpError coming back from the OAuth callback redirect) — Next.js
           requires one around any client-side use of that hook. */}
       <Suspense fallback={null}>
-        <AddPhotosForm />
+        {/* Owner only until the Google app is published (see AddPhotosForm). */}
+        <AddPhotosForm showGoogleImport={user.isOwner} />
       </Suspense>
     </div>
   );

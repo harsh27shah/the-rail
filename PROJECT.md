@@ -1286,8 +1286,12 @@ Suggested build order:
       live in Google Photos would have had no way in. The import was already confirmed working on an
       iPhone (item 22). A tip pointing people to it was added, then **removed the same day**: until the
       app is published out of Google's "Testing" status, only listed test users (just the owner) can
-      use the import, so a friend following the tip would hit an error. The button itself is still
-      shown. Improving the Google Photos flows is parked until the app is published (BACKLOG).
+      use the import, so a friend following the tip would hit an error. **The import button is now
+      hidden for everyone except the owner** (`showGoogleImport` in `app/add/page.tsx` →
+      `components/AddPhotosForm.tsx`, default off), checked in a browser with a regular and an owner
+      throwaway account (regular: no button and no tip, file picker and submit still work; owner:
+      button shown). Improving the Google Photos flows, and turning the button and tip back on, is
+      parked until the app is published (BACKLOG has the checklist).
     - **Checked** in a real browser on a throwaway account: empty account (welcome shown; strip, rail
       and search gone), Add page (tips open, goal line, Google button visible), the same account at 12
       pieces (normal storefront; tips folded; no goal line), and the welcome at phone width (one

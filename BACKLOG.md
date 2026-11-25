@@ -71,10 +71,29 @@ Each line: what it is → why it's parked / what triggers doing it.
   - **Why it still matters:** on an iPhone the normal photo picker only shows photos saved on the
     phone, not Google Photos, so this import is the only route for someone whose photos live in
     Google Photos.
-  - **The Add page tip about it was removed (2026-11-25)**, because a friend who isn't a Google test
-    user would hit an error. The "Import from Google Photos" button itself is still shown on the Add
-    page and will fail for such a friend. Restore the tip (and fix or hide the button) when the app is
-    published.
+  - **What was switched off in the meantime (2026-11-25), so a friend never hits an error:**
+    1. The Add page tip "Photos in Google Photos? Use Import from Google Photos below. Your phone's own
+       picker may only show the photos saved on the phone itself." was removed (`components/AddTips.tsx`).
+    2. The "Import from Google Photos" button is now shown **only to the owner** (the one Google test
+       user), through a `showGoogleImport` setting passed from `app/add/page.tsx` to
+       `components/AddPhotosForm.tsx` (default off). Everyone else just sees the normal photo picker.
+       Note the effect: on an iPhone, a friend whose photos live only in Google Photos has no way to
+       bring them in until this is turned back on.
+  - **REMEMBER, when the app is published (or if a friend must use the import sooner):**
+    - [ ] Publish the Google app out of Testing (Audience page; needs an app name on the Branding page,
+          and possibly a privacy policy and verified domain depending on how Google classifies the
+          Photos permission: find that out first by adding the permission under Data access).
+    - [ ] Show the import button to everyone again: change `showGoogleImport={user.isOwner}` in
+          `app/add/page.tsx` to `showGoogleImport` (or remove the setting).
+    - [ ] Put the tip line back in `components/AddTips.tsx` (wording above).
+    - [ ] Confirm the weekly reconnect is gone after publishing (it should be; Google's docs only
+          state the 7-day limit for Testing).
+    - [ ] Then try the iPhone experiments above (real link, check on return, Safari against Chrome).
+    - [ ] Update the landing page's "Working today" list if the import is worth mentioning, and the
+          privacy copy if anything changes about what Google sees.
+    - **Shortcut if a friend needs it before publishing:** add their Google email under Test users
+      (Google Cloud → Google Auth Platform → Audience, up to 100), then show the button to them. The
+      7-day reconnect still applies to them.
 
 ## Paused, waiting on something
 

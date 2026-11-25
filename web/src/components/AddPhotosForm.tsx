@@ -51,7 +51,12 @@ async function uploadPhoto(file: File): Promise<{ ok: true; path: string } | { o
   }
 }
 
-export function AddPhotosForm() {
+/**
+ * `showGoogleImport`: the "Import from Google Photos" button is hidden for everyone but the owner
+ * until the Google app is published (see BACKLOG.md): while it is in Google's "Testing" status, only
+ * listed test users (just the owner) can use it, so for anyone else it fails. Default off.
+ */
+export function AddPhotosForm({ showGoogleImport = false }: { showGoogleImport?: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -169,7 +174,7 @@ export function AddPhotosForm() {
         </p>
       )}
 
-      {phase.kind !== "needs-selection" && (
+      {showGoogleImport && phase.kind !== "needs-selection" && (
         <div className="add-alt-source">
           <span className="hint">or</span>
           <GooglePhotosImport

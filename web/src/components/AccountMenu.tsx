@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { signOutAction } from "@/app/login/actions";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -11,6 +12,11 @@ export async function AccountMenu() {
       <span className="account-email" title={user.email}>
         {user.email}
       </span>
+      {user.isOwner && (
+        <Link href="/invite" className="account-out">
+          Invite
+        </Link>
+      )}
       <button type="submit" className="account-out">
         Sign out
       </button>

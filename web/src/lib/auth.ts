@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { authConfigured, getAuthClient } from "./supabase-auth";
 
 /**
@@ -19,6 +19,10 @@ import { authConfigured, getAuthClient } from "./supabase-auth";
 export interface CurrentUser {
   id: string;
   email: string;
+  /** True for the app's owner (the only person who can invite others). Read from the account's
+   * `app_metadata`, which only the server's service key can write — a signed-in user can't
+   * edit it themselves, unlike `user_metadata`. Set with scripts/make-owner.mjs. */
+  isOwner: boolean;
 }
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -26,7 +30,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await getAuthClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
-  return { id: data.user.id, email: data.user.email ?? "" };
+  return {
+    id: data.user.id,
+    email: data.user.email ?? "",
+    isOwner: data.user.app_metadata?.role === "owner",
+  };
 });
 
 /**
@@ -39,5 +47,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+/** Like requireUser, but only for the owner. Anyone else gets a 404, so the page's existence isn't advertised. */
+export async function requireOwner(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!user.isOwner) notFound();
   return user;
 }

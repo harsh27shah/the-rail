@@ -1130,8 +1130,8 @@ Suggested build order:
       state doesn't retry by itself, only on the button; the failure path was tested by forcing the
       stored state, not by a real outage.
 
-28. 🟡 **Big photos: upload straight to storage, and always send the AI a sensibly sized copy —
-    built and verified locally, not live.** Prompted by a Fuji camera photo failing on the live site
+28. ✅ **Big photos: upload straight to storage, and always send the AI a sensibly sized copy —
+    live, and confirmed on the live site.** Prompted by a Fuji camera photo failing on the live site
     with "An unexpected response was received from the server". The likely cause is Vercel
     refusing request bodies over ~4.5 MB (our own 25 MB limit only applies locally); phone and
     camera photos are often bigger. Two problems, one fix:
@@ -1160,12 +1160,44 @@ Suggested build order:
       10.2 MB, 24-megapixel photo uploaded and was read, shown the "which one is you?" picker, cropped
       to two items with the stored originals still 12 MB; the skip path deleted the held photo; an
       ordinary small photo still produced three items; temporary storage was empty after each run.
-      It was **not** tested on Vercel itself (the limit doesn't exist locally), so the first live
-      test is the Fuji photo again.
+      It couldn't be tested on Vercel itself (the limit doesn't exist locally), so the real test was
+      the Fuji photo that originally failed: **the owner re-tried it on the live site after the
+      upload and it went through**, which also confirms the 4.5 MB diagnosis.
     - **Known limits:** no upload progress bar (a "Uploading" step shows instead); no resume if the
       tab closes mid-batch; the 40 MB per-photo ceiling; the upload goes straight from the browser to
       Supabase, so it needs Supabase's storage reachable from the person's network (same as the
       photos already shown on the site).
+
+29. 🟡 **Sign in with Google, and an owner-only invite page — built and tested locally, not live.**
+    Replaces "type your email, open the emailed link" as the main way in (item 23); the emailed
+    link stays as a small fallback under "No Google account?".
+    - **Google sign-in.** "Continue with Google" on `/login` goes through Supabase's Google
+      provider and lands on the same `/auth/callback` as the emailed link. Still invite-only:
+      Supabase's open sign-ups stay off, so a Google account whose email has no waiting account
+      is sent back to `/login?error=invite` ("that Google account hasn't been invited"). For an
+      invited email, Google attaches to the account created in advance, so it's the same wardrobe.
+      Setup done by the owner: Supabase redirect address added to the existing Google OAuth client,
+      and the Google provider switched on in Supabase with that client's ID and secret.
+    - **Invite page (`/invite`), instead of `scripts/create-user.mjs`.** Only the owner can open it
+      (anyone else gets a 404, and the top bar's "Invite" link only appears for the owner). Type a
+      friend's Google email, tap Invite: it creates their account ahead of time, same as the
+      script. The page also lists everyone with an account and whether they've signed in yet.
+      The owner flag is `app_metadata.role = "owner"` on the account, which only the server's
+      service key can write (set with `scripts/make-owner.mjs`; done for the owner's account).
+      The invite action checks ownership itself (`requireOwner`), not just the page.
+    - **Considered and rejected: one-use shareable links** that any first-comer could redeem.
+      It would need open sign-ups plus an "is this person approved?" check on every action
+      (reopening what item 23 locked down) and a forwarded link could be claimed by the wrong
+      person. Revisit only if invites ever outgrow typing an email.
+    - **Known limit:** the email must match the person's Google account address exactly. A Gmail
+      address with or without dots can differ, and the page says so. If they get turned away,
+      check the exact address on their Google account.
+    - **Verified:** `scripts/test-invites.ts` (5 checks, real database, throwaway email); in the
+      running app: signed-out visitors bounced from `/invite`; the Google button reaches Google's
+      account chooser with the right return address; a non-owner gets a 404 and sees no Invite
+      link; the owner invites an email and the list updates. All throwaway accounts deleted.
+      **Not tested here:** a full Google sign-in (needs a real Google login, so the owner's first
+      real sign-in is that test).
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

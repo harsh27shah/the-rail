@@ -1,4 +1,4 @@
-// Invite someone: creates their account so they can sign in with an emailed code.
+// Invite someone: creates their account so they can sign in with Google (the same email address) or an emailed link.
 //
 // The app is invite-only (open sign-ups are switched off in the Supabase dashboard, because
 // every AI key is billed to the owner) — so this is how a person gets in. Safe to re-run for

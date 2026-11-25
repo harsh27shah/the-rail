@@ -676,6 +676,33 @@ textarea {
   color: #b3261e;
 }
 
+/* Owner's invite page (src/app/invite) */
+.invite-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.invite-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.invite-email {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.invite-meta {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* ---------- item detail page ---------- */
 .detail {
   padding: 30px 24px 90px;

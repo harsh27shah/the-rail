@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { getAuthClient } from "@/lib/supabase-auth";
 
 /**
- * Sign-in is a magic link emailed to the owner. (A typed 6-digit code would be nicer on a
+ * Primary sign-in is "Continue with Google" (signInWithGoogleAction below). The emailed magic
+ * link underneath is the fallback for people without a Google account, and for the owner if
+ * Google setup ever breaks.
+ *
+ * The magic link: (A typed 6-digit code would be nicer on a
  * phone — a link can open in a different browser than the one the owner started in — but
  * Supabase only lets you put the code in the email once you've connected your own email
  * sender, and the default template carries just the link. Worth revisiting with custom SMTP.)
@@ -50,6 +54,38 @@ export async function sendLoginLinkAction(email: string): Promise<SendLinkResult
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't send a link right now" };
   }
+}
+
+/**
+ * "Continue with Google": sends the browser to Google, which sends it back to /auth/callback
+ * with a one-time code (same hand-off as the emailed link). Still invite-only — Supabase has
+ * open sign-ups switched off, so a Google account whose email has no account here is turned
+ * away at the callback rather than getting one created. A Google sign-in for an invited email
+ * attaches to that person's existing account (same email, so same wardrobe).
+ */
+export async function signInWithGoogleAction() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  if (!host) redirect("/login?error=google");
+
+  let target: string | null = null;
+  try {
+    const supabase = await getAuthClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${proto}://${host}/auth/callback`,
+        // Always let the person pick the Google account (people have several).
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (!error) target = data.url;
+  } catch {
+    // falls through to the error redirect
+  }
+  // redirect() works by throwing, so it must stay outside the try/catch above.
+  redirect(target ?? "/login?error=google");
 }
 
 export async function signOutAction() {

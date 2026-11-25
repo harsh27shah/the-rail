@@ -11,13 +11,13 @@ Each line: what it is → why it's parked / what triggers doing it.
 
 ## Do soon (real user-facing breakage, waiting on a go-ahead)
 
-- [~] **Large photos fail on the deployed site.** Built and tested on the owner's machine
-  (2026-11-25), **not live yet** (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
+- [x] **Large photos fail on the deployed site.** **Fixed and confirmed live:** the Fuji photo that
+  failed now uploads fine (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
   with "An unexpected response was received from the server", most likely Vercel's ~4.5 MB limit
   on request bodies (not confirmed on the live site). Photos now go from the browser straight to
   temporary private storage and the server reads them from there; a second, hidden limit
   (Claude refuses any image over ~5 MB) is handled by sending the AI a shrunk copy. After it
-  goes live: re-try the Fuji photo to confirm.
+  goes live: re-try the Fuji photo to confirm. (Done: it worked.)
 - [x] **Time limit (`maxDuration`) on photo processing.** Turned out to be set already: the Add
   page has 60 seconds (and the item page now does too). Nothing to do unless photos start timing
   out.

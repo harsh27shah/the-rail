@@ -11,6 +11,21 @@ Each line: what it is → why it's parked / what triggers doing it.
 
 ## Do soon (real user-facing breakage, waiting on a go-ahead)
 
+- [ ] **First-run onboarding, steps 2 to 4** (step 1 is built, PROJECT.md §5 item 32). Agreed order,
+  decided 2026-11-25; goal is 12 pieces (5 tops, 5 bottoms, 2 outerwear), shoes a bonus:
+  2. **A progress panel on the rail** while someone has between 1 and 11 pieces, showing the split, e.g.
+     "7 of 12. Still need 3 bottoms and 2 outerwear" (it uses `coverageGap` / `STARTER_PLAN`). Then, once
+     they have enough, an "Open any piece to see outfits" prompt pointing at one specific piece,
+     dismissed once they've looked.
+  3. **After the first upload**, a message instead of just dropping them on the rail: "3 pieces hung.
+     2 more tops and 5 more bottoms unlock outfits."
+  4. **(Later) pieces and "seen outfits" next to each friend on the Invite page**, so the owner can see
+     where people drop off (never signed in, signed in but added nothing, stuck at 3 pieces, reached
+     outfits). Counts only, no photos. Friends should be told the owner can see these counts: add to the
+     privacy note.
+  Parked, not part of onboarding: a "what's your style?" quiz (fits the "find your style" headline, but
+  it's a separate feature).
+
 - [x] **Large photos fail on the deployed site.** **Fixed and confirmed live:** the Fuji photo that
   failed now uploads fine (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
   with "An unexpected response was received from the server", most likely Vercel's ~4.5 MB limit
@@ -32,8 +47,39 @@ Each line: what it is → why it's parked / what triggers doing it.
   that screen weekly, and so would every friend. Fix is on the Google Cloud side: move the
   consent screen out of Testing. Not yet checked: whether Google puts an "unverified app"
   warning or a user cap on this permission once it's out of Testing. Look that up first.
+  **Matters more than first thought:** on an iPhone the normal photo picker only shows photos saved
+  on the phone, not Google Photos, so this import is the only way for someone whose photos live in
+  Google Photos to bring them in (the Add page's tips now point them to it).
 
 ## Paused, waiting on something
+
+- [ ] **Dark mode: built, parked on a side branch, not released** (decided 2026-11-25: keep it out of
+  the onboarding release). The whole site follows the phone's light or dark setting. The finished work
+  is saved on the local branch `dark-mode` (commit `aa4c34e`, on this computer only, not uploaded);
+  its project notes are item 33 there. It is waiting on the photo backgrounds below, because the light
+  studio backgrounds of the generated product photos glow on the dark page.
+  - **Cut out the photo backgrounds** so garments sit directly on the page colour in both themes.
+    Compared on real photos (`web/eval-data/dark-photo-options.png`, private): dimming (20% / 35%)
+    just turns the backgrounds a flat murky grey and dulls the clothes, so not that. A simple
+    edge-flood-fill cut-out looked great on dark and coloured garments (navy jumper, brown jacket,
+    black trousers) but ate into white and cream ones (white Stan Smith trainers, white linen shirt),
+    so it can't be the method.
+    - **Next step:** test two proper background-removal options on the hardest items (white trainers,
+      white linen shirt, white tee) before choosing, e.g. a segmentation mask from Gemini and a
+      dedicated background-removal library. Change nothing in the app until the results are seen.
+    - **To settle when building it:** it also changes the light look (the grey photo background
+      becomes the page colour); it adds a processing step and a few cents per upload; the 49 existing
+      photos need one backfill run (same pattern as the other `scripts/backfill-*` scripts); keep a soft
+      shadow or other cue so garments don't look like they float; it must work with
+      `normalizeProductPhoto` and the 3:4 tile (`lib/product-photo.ts`). Also lays groundwork for the
+      planned outfit images on a stand-in model, since cut-outs combine cleanly.
+  - **Smaller dark mode items:** the light theme's grey secondary text is a little faint (3.5:1 against
+    the page, under the 4.5:1 guideline; a design decision, held at today's level by the dark mode
+    test); an optional manual light/dark switch (the page already supports forcing a theme); the
+    installed home-screen app's launch screen stays light; select mode, the Google Photos import and
+    the correction result weren't looked at in dark; not checked on a real phone.
+  - **To release:** decide whether to wait for the cut-outs or ship dark mode with bright photos, then
+    merge the `dark-mode` branch (the colour switch is in `globals.css` and `layout.tsx`).
 
 - [ ] **Better "styles well with" suggestions (tops with bottoms only for now) — waiting on other
   people's ratings.** Where it stands (2026-11-24): the rules and an AI stylist both agreed with

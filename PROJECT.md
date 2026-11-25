@@ -1260,6 +1260,43 @@ Suggested build order:
     - **Not done (the next chunks):** the first-run onboarding on the empty rail and Add page, and a
       prompt after the first upload pointing to the outfits.
 
+32. 🟡 **First-run onboarding, step 1 — built and checked locally, not live.** What a brand-new person
+    sees after signing in, aimed at one thing: getting them to the first outfits in their first session.
+    - **The goal is 12 pieces: 5 tops, 5 bottoms, 2 outerwear** (owner's decision, 2026-11-25; shoes are
+      a bonus). It is not a separate number: `STARTER_PLAN` / `STARTER_TOTAL` in `lib/coverage.ts` are
+      the sum of the app's own outfit minimums, so what people are told can't drift from what the
+      outfit feature needs. `scripts/test-onboarding.ts` (8 checks) ties the two together, including
+      that 12 tops alone is NOT enough (the split matters, not just the total).
+    - **Empty rail → welcome** (`components/Welcome.tsx`, shown by `Storefront.tsx` when there are no
+      pieces): "Hang your first 12 pieces", the 5 / 5 / 2 goal, three steps (pick photos, it reads each
+      piece, open any piece), a big Add button, and a short reassurance about photos. The stats strip,
+      category buttons (showing "0" with red dots) and search box are hidden until there is something
+      to browse.
+    - **Add page** (`components/AddTips.tsx`, `app/add/page.tsx`): a tips panel with the goal line.
+      Open while someone has fewer than 12 pieces, folded away (one click to reopen) once they have
+      12 or more, so it never nags a regular user. The tips describe what the app really does: mirror
+      selfies give several pieces; photos of just you are quickest, and if someone else is in the shot
+      you're asked to tap which one is you (NOT a "one person per photo" rule: the owner caught that);
+      good light and the whole piece in view; only tops, bottoms, outerwear and shoes are catalogued
+      (accessories are skipped); photos stored in Google Photos should use the import button; keep the
+      page open while it reads.
+    - **Correction (owner, 2026-11-25): the Google Photos import stays visible on phones.** First
+      version hid it on touch devices, on the claim that a phone's photo picker already reaches Google
+      Photos. That is true on Android but NOT on an iPhone, where the picker shows only photos saved on
+      the phone (and the Files app, which has Google Drive but not Google Photos). Someone whose photos
+      live in Google Photos would have had no way in. The import was already confirmed working on an
+      iPhone (item 22). The Add tips now say when to use it. This makes the weekly Google connection
+      expiry (BACKLOG) matter more.
+    - **Checked** in a real browser on a throwaway account: empty account (welcome shown; strip, rail
+      and search gone), Add page (tips open, goal line, Google button visible), the same account at 12
+      pieces (normal storefront; tips folded; no goal line), and the welcome at phone width (one
+      column, no sideways scroll). Throwaway account deleted; the owner's 49 items untouched. The final
+      light-theme-only version (after dark mode was moved to its own branch) was type-checked and
+      tested but its Add-page tips line about Google Photos was not re-viewed in the browser.
+    - **Not done yet (next steps, in `BACKLOG.md`):** the progress panel while someone is between 1 and
+      11 pieces ("Tops 2 of 5, bottoms 0 of 5"), the "open any piece to see outfits" prompt, the message
+      after the first upload, and pieces / outfits-seen next to each friend on the Invite page.
+
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
 

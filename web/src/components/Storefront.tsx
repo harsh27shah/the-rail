@@ -7,6 +7,7 @@ import Link from "next/link";
 import { CATEGORIES, type Category, type Item } from "@/lib/types";
 import { coverageGap } from "@/lib/coverage";
 import { ItemCard } from "./ItemCard";
+import { Welcome } from "./Welcome";
 import { bulkDeleteAction } from "@/app/actions";
 
 const NEUTRALS = ["black", "white", "grey", "gray", "navy", "beige", "cream", "brown", "tan", "charcoal"];
@@ -158,12 +159,14 @@ export function Storefront({ items }: { items: Item[] }) {
   // rows with no unifying CTA.
   const sectioned = filter === "All" && !query && items.length > 0;
 
+  // A brand-new person (nothing hung yet) gets the welcome and the 12-piece goal instead of an
+  // empty browsing screen: category buttons showing "0", a search box with nothing to search and a
+  // stats strip would all be noise until there is something to browse.
+  if (items.length === 0) return <Welcome />;
+
   return (
     <>
       <div className="strip">
-        {items.length === 0 ? (
-          <span>Nothing on the rail yet</span>
-        ) : (
           <>
             <span>
               <b>{items.length}</b> pieces
@@ -202,7 +205,6 @@ export function Storefront({ items }: { items: Item[] }) {
               )}
             </span>
           </>
-        )}
       </div>
 
       <div className="rail" ref={railRef}>
@@ -296,17 +298,8 @@ export function Storefront({ items }: { items: Item[] }) {
         <div className="grid">
           {visible.length === 0 ? (
             <div className="empty-state">
-              <h2>{items.length ? "Nothing matches" : "The rail is empty"}</h2>
-              <p>
-                {items.length
-                  ? "Try a different category or search."
-                  : "Add your first piece and it gets read, tagged, and hung here."}
-              </p>
-              {!items.length && (
-                <Link href="/add" className="btn">
-                  + Add a piece
-                </Link>
-              )}
+              <h2>Nothing matches</h2>
+              <p>Try a different category or search.</p>
             </div>
           ) : (
             visible.map((it) => (

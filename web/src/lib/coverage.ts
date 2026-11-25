@@ -53,3 +53,15 @@ export function coverageGap(category: Category, count: number): CoverageGap | nu
   const needed = rule.min - count;
   return { min: rule.min, needed, message: rule.message(needed) };
 }
+
+/**
+ * The first-run goal shown to new people (the empty rail's welcome and the Add page): enough
+ * pieces for the Rail to start building outfits. It is the SUM of the minimums above, so the
+ * number a new person is told and the numbers the app actually needs can't drift apart.
+ * Today: 5 tops + 5 bottoms + 2 outerwear = 12. (Footwear has no minimum: shoes are a bonus.)
+ */
+export const STARTER_PLAN: { category: Category; min: number }[] = (
+  Object.entries(CATEGORY_COVERAGE) as [Category, { min: number }][]
+).map(([category, rule]) => ({ category, min: rule.min }));
+
+export const STARTER_TOTAL = STARTER_PLAN.reduce((n, p) => n + p.min, 0);

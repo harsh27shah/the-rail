@@ -90,6 +90,8 @@ export async function signInWithGoogleAction() {
 
 export async function signOutAction() {
   const supabase = await getAuthClient();
-  await supabase.auth.signOut();
+  // "local": end this device's session only. The default ("global") would also sign the person out of every
+  // other phone and computer, and leave those browsers holding a cookie that looks valid but isn't.
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/login");
 }

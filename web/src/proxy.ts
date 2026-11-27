@@ -55,9 +55,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url), 303);
   }
 
-  if (signedIn && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", request.url), 303);
-  }
+  // Deliberately NO "already signed in, so leave /login" bounce here. This check only reads the cookie, so
+  // it can't tell a live session from one that was ended on the server (for example by signing out on
+  // another device) but whose token still looks valid for up to an hour. Bouncing that person from
+  // /login to "/" while "/" bounces them back to /login is an endless loop (ERR_TOO_MANY_REDIRECTS). The
+  // login page makes that decision itself, with the authoritative check (app/login/page.tsx).
 
   return response;
 }

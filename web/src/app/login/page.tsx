@@ -1,5 +1,7 @@
 import { GoogleButton, LoginForm } from "@/components/LoginForm";
 import { Landing } from "@/components/Landing";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { authConfigured } from "@/lib/supabase-auth";
 
 /**
@@ -14,6 +16,11 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   const ready = authConfigured();
+
+  // Someone who really is signed in has no use for this page. This is the authoritative check (it asks
+  // Supabase, not just the cookie), which is why the proxy no longer does this bounce: a cookie that
+  // looks valid but was ended on the server would loop between here and the home page.
+  if (await getCurrentUser()) redirect("/");
 
   const signIn = (
     <>

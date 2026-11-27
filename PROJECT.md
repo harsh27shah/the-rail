@@ -1456,6 +1456,30 @@ Suggested build order:
     - **Not built (point 3 of the discussion):** showing the old outfits straight away while the new ones are made
       in the background, so there is no wait. Worth doing if the wait feels bad; in `BACKLOG.md`.
 
+37. 🟡 **Fixed: an endless redirect loop (ERR_TOO_MANY_REDIRECTS) for a session that was ended on the server — built and
+    checked locally, not live** (2026-11-27). Found when the owner's Chrome showed "redirected you too many times"
+    on the live site. It was an existing bug, not from that day's uploads.
+    - **Cause.** Two checks disagreed. The proxy (`src/proxy.ts`) only reads the cookie, so a token that still
+      looks valid counts as "signed in", and it bounced `/login` to `/`. The home page asks Supabase properly
+      (`requireUser`), and if the session had been ended on the server it sent the person back to `/login`. A
+      cookie that looks valid but isn't (up to an hour, until the token expires) made the two bounce for ever.
+    - **How a session ends on the server:** the sign-out button called `signOut()`, whose default is "global": it
+      ended the person's sessions on EVERY device, leaving other browsers with a valid-looking cookie. So signing
+      out on a phone could trap the same person's laptop in the loop, and the same would have happened to a friend.
+      (That this is what happened to the owner is the likely cause, not proven.)
+    - **Fix, two parts.** (1) Sign-out is `signOut({ scope: "local" })`: this device only. (2) The proxy no longer
+      bounces `/login` to `/`; the login page does that itself with the authoritative check (`getCurrentUser`), so
+      a half-valid cookie lands on the login page and signing in overwrites it.
+    - **Checked.** `scripts/test-dead-session.ts` (12 checks, needs the app running locally; real database,
+      throwaway account): healthy session works, a session cancelled on the server ends on the login page from
+      `/`, `/login` and `/add` with no loop, and signing out on one device leaves another device signed in. It
+      failed 5 checks before the fix (reproducing the exact loop), and passes after. In a real browser: visiting
+      `/login` while signed in goes to the home page; the real Sign out button lands on the front page; a second
+      session for the same account stayed valid afterwards. Throwaway account deleted.
+    - **Known limit:** a person who is stuck right now (before this is live) can open a private window, or clear the
+      site's cookies, or wait up to an hour. A cancelled-but-valid-looking cookie also makes the proxy think they are
+      signed in for that hour; every real page re-checks, so nothing is exposed, they just land on the login page.
+
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
 

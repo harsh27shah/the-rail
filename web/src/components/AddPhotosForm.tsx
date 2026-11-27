@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addPhotoAction, addPhotoWithPersonAction, createUploadAction, discardUploadAction } from "@/app/add/actions";
 import { GooglePhotosImport } from "@/components/GooglePhotosImport";
 import type { PersonBox } from "@/lib/gemini";
+import { afterUploadDestination } from "@/lib/onboarding";
 
 /**
  * Multi-photo ingestion. The owner picks one photo or many at once; this uploads them one
@@ -56,7 +57,14 @@ async function uploadPhoto(file: File): Promise<{ ok: true; path: string } | { o
  * until the Google app is published (see BACKLOG.md): while it is in Google's "Testing" status, only
  * listed test users (just the owner) can use it, so for anyone else it fails. Default off.
  */
-export function AddPhotosForm({ showGoogleImport = false }: { showGoogleImport?: boolean }) {
+export function AddPhotosForm({
+  showGoogleImport = false,
+  onboarding = false,
+}: {
+  showGoogleImport?: boolean;
+  /** Still getting set up (hasn't seen outfits): after an upload, land on the rail with the "Hung N pieces" note. */
+  onboarding?: boolean;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -135,14 +143,11 @@ export function AddPhotosForm({ showGoogleImport = false }: { showGoogleImport?:
       else if (result.kind === "error") failures.push(`${files[i].name} — ${result.error}`);
     }
 
-    if (allIds.length === 1 && failures.length === 0 && skipped === 0) {
-      router.push(`/item/${allIds[0]}`);
-      return;
-    }
-
+    // Where to go next depends on whether the person is still getting set up (lib/onboarding.ts).
+    const dest = afterUploadDestination({ onboarding, ids: allIds, failures: failures.length, skipped });
     router.refresh();
-    if (failures.length === 0 && skipped === 0) {
-      router.push("/");
+    if (dest.kind === "go") {
+      router.push(dest.href);
     } else {
       // Keep the owner here so they can see which photos didn't take or were skipped.
       setPhase({ kind: "done", created: allIds.length, skipped, failures });
@@ -260,7 +265,7 @@ export function AddPhotosForm({ showGoogleImport = false }: { showGoogleImport?:
             type="button"
             className="btn ghost"
             style={{ marginTop: 12 }}
-            onClick={() => router.push("/")}
+            onClick={() => router.push(onboarding && phase.created > 0 ? `/?hung=${phase.created}` : "/")}
           >
             Go to the rail
           </button>

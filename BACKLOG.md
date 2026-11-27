@@ -11,20 +11,22 @@ Each line: what it is → why it's parked / what triggers doing it.
 
 ## Do soon (real user-facing breakage, waiting on a go-ahead)
 
-- [ ] **First-run onboarding, steps 3 and 4** (steps 1 and 2 are built, PROJECT.md §5 item 32; step 2 is
-  built locally and awaiting an upload). Agreed order, decided 2026-11-25; goal is 12 pieces (5 tops,
-  5 bottoms, 2 outerwear), shoes a bonus; "ready" is at 5 tops + 5 bottoms (10), decided 2026-11-27:
-  2. ~~A progress panel on the rail~~ (done: building / ready / gone).
-  Small follow-up: the item page's own outfits text says "It takes a few seconds", but the first
-  outfits can take up to about half a minute; reword it to match.
-  3. **After the first upload**, a message instead of just dropping them on the rail: "3 pieces hung.
-     2 more tops and 5 more bottoms unlock outfits."
-  4. **(Later) pieces and "seen outfits" next to each friend on the Invite page**, so the owner can see
-     where people drop off (never signed in, signed in but added nothing, stuck at 3 pieces, reached
-     outfits). Counts only, no photos. Friends should be told the owner can see these counts: add to the
-     privacy note.
-  Parked, not part of onboarding: a "what's your style?" quiz (fits the "find your style" headline, but
-  it's a separate feature).
+- [ ] **First-run onboarding: all four steps are built (PROJECT.md §5 item 32); steps 3 and 4 are built
+  locally and awaiting an upload.** Goal is 12 pieces (5 tops, 5 bottoms, 2 outerwear), shoes a bonus;
+  "ready" is at 5 tops + 5 bottoms (10), decided 2026-11-27. What's left:
+  - The item page's own outfits text says "It takes a few seconds", but the first outfits can take up to
+    about half a minute; reword it to match.
+  - Parked, not part of onboarding: a "what's your style?" quiz (fits the "find your style" headline,
+    but it's a separate feature).
+- [ ] **Duplicate checking is the biggest AI cost per piece: look at trimming it** (found 2026-11-27 from
+  the new per-friend spend on the Invite page). One test session on the owner's second account made 108
+  AI calls and cost about $3.34: 48 duplicate checks (~$1.50, about 3 cents each, 4 images per
+  comparison, up to 5 comparisons for every new piece), 31 background removals (~$1.29), 15 photo reads
+  (~$0.33) and 8 outfit generations (~$0.16). A piece can cost about 10 to 25 cents once its duplicate
+  checks are counted, so 10 friends adding 12 pieces each could reach roughly $12 to $30, and the
+  $25 monthly Anthropic limit set on 2026-11-25 could be hit. Ideas: compare against fewer candidates
+  (2 or 3 instead of 5), skip the check for a person's first few pieces, or compare in one call. Test
+  that it doesn't miss real duplicates (see the duplicate-detection item).
 
 - [x] **Large photos fail on the deployed site.** **Fixed and confirmed live:** the Fuji photo that
   failed now uploads fine (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
@@ -318,6 +320,10 @@ say so. Items you'd already struck through are listed as done.
 - [ ] **Backfill scripts ignore who owns what.** Most `scripts/backfill-*.mjs` act on every row
   regardless of user. Fine while you're the only real user; fix if one ever needs to run for
   one person.
+- [ ] **Make selecting, editing, removing and reviewing duplicates feel snappy.** Especially right
+  after a bulk add, when there's the most to tidy up. Not measured yet: find where it's slow.
+- [ ] **Make that same tidy-up flow intuitive for a new user.** After a first bulk add (onboarding),
+  selecting, editing, removing and resolving duplicates should be obvious without explanation.
 
 ## Photo ingestion — known gaps
 
@@ -345,6 +351,9 @@ say so. Items you'd already struck through are listed as done.
   first, so this may never matter.
 - [ ] **One photo at a time, no resume.** A 50-photo import is slow, and closing the tab drops the
   rest. → Fine now; revisit when bulk runs get big.
+- [ ] **Faster, more visual photo upload.** Today it's a text line ("Reading photo 3 of 8…").
+  Wanted: show the actual photos as they upload and get worked on (thumbnails with a status
+  each: uploading, reading, cleaning up, done), and make the whole run faster.
 - [ ] **Baseball cap catalogued as a Top** (once, on the rain-jacket photo). Accessories are meant to
   be skipped. Not obviously caused by recent changes. → Watch for a repeat; tighten the
   accessories rule if it does.
@@ -360,6 +369,11 @@ say so. Items you'd already struck through are listed as done.
 - [ ] **Other image-generation glitches remain.** Besides the doubled view (now handled in code),
   Gemini sometimes still leaves the person in frame or cuts off a sleeve. "Not quite right?"
   is the safety net. → Add automatic detection only if these become common.
+- [ ] **A repeatable way to raise and standardise product-photo quality, per item type.** Instead
+  of fixing photos one bug at a time: write a standard look for each category (angle, framing,
+  shoes as a pair, etc.), and build a repeatable quality test (an "eval": a fixed set of real
+  photos scored against that standard) to check every prompt or model change. Could be a
+  reusable skill or a better model. Ties together the shoe-consistency and glitch items above.
 - [ ] **Pure gym gear isn't rejected** — a technical running tee still gets catalogued as a Top.
   Actively excluding it would be a separate feature.
 - [ ] **"This is actually from Zara": let people name the brand and paste a product link.** The

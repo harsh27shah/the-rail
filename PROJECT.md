@@ -1329,8 +1329,33 @@ Suggested build order:
         outfits" opening the piece with its outfits, and the panel gone from the rail afterwards.
         The simulator is a separate virtual phone with none of the owner's own apps or data.
       - **Not checked:** on a real phone.
-    - **Not done yet (next steps, in `BACKLOG.md`):** the message after the first upload, and pieces /
-      outfits-seen next to each friend on the Invite page.
+    - **Step 3 — after an upload: built and checked locally, not live** (2026-11-27). While someone
+      hasn't seen outfits yet, a finished upload always lands on the **rail** (even a single photo that
+      made one piece, which used to open that piece's own page, with no hint of what to do next). The
+      rail shows a one-line "Hung N pieces on your rail." note (`components/HungNote.tsx`, driven by
+      `?hung=N`) above the step 2 card. The address parameter is dropped once shown, so a reload or a
+      shared link doesn't repeat it. Everyone who has seen outfits keeps the original rule (one piece
+      opens its page, several go to the rail). If any photo failed or was skipped, they stay on the Add
+      page as before. The rule is a pure function (`afterUploadDestination` in `lib/onboarding.ts`).
+    - **Step 4 — progress on your Invite page: built and checked locally, not live.** Under each person: "12
+      pieces · saw outfits", "7 pieces · hasn't seen outfits yet", "0 pieces · signed in, added nothing" or
+      "No pieces yet". Counts only, never photos (`memberProgress` in `lib/invites.ts`: two cheap counts
+      per person, no database change). "Saw outfits" is the same finished-outfit-set test the progress
+      card uses, so an unfinished claim doesn't count. A privacy sentence about the owner seeing these counts was added to the
+      landing page, then **removed again the same day** (owner's call: this is only the testing phase with
+      friends). Revisit it, and tell friends, before strangers join.
+    - **Checked (steps 3 and 4):** `scripts/test-onboarding.ts` is now 40 checks (15 new: every
+      branch of the after-upload rule, the address parameter, the wording, the progress line);
+      `scripts/test-member-progress.ts` (7 checks, real database, throwaway accounts). In the iOS
+      Simulator on a brand-new account, a real upload through the iPhone's own photo picker (which shows
+      Photo Library, Take Photo and Choose Files, and no Google Photos) landed on the rail with the note
+      and the card ("1 of 12 pieces, 4 more tops and 5 more bottoms unlock outfits"), and a reload
+      dropped the note. The Invite page was viewed as an owner with throwaway friends at each stage. All
+      throwaway accounts and their uploaded files deleted; the owner's 49 pieces untouched.
+    - **Found while testing:** the Invite page showed the owner's second account at 108 AI calls and about
+      $3.34 this month for 3 pieces. That looks like testing earlier the same day (15 photos read, 31
+      background removals, 48 duplicate checks, 8 outfit generations, then pieces removed), not a runaway.
+      It does show duplicate checking is the biggest cost per piece (BACKLOG).
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

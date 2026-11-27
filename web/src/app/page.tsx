@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getItems, isDatabaseConnected } from "@/lib/items";
-import { onboardingProgress } from "@/lib/onboarding";
+import { onboardingProgress, parseHung } from "@/lib/onboarding";
 import { userHasSeenOutfits } from "@/lib/outfit-store";
 import { Storefront } from "@/components/Storefront";
 
@@ -9,13 +9,19 @@ import { Storefront } from "@/components/Storefront";
 // next deploy. Always fetch fresh from the database instead.
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hung?: string | string[] }>;
+}) {
   const user = await requireUser();
-  const [items, seenOutfits] = await Promise.all([getItems(user.id), userHasSeenOutfits(user.id)]);
+  const [items, seenOutfits, params] = await Promise.all([getItems(user.id), userHasSeenOutfits(user.id), searchParams]);
   const connected = isDatabaseConnected();
   // The first-run progress panel: null for an empty rail (the welcome covers it) and for anyone
   // who has already seen outfits.
   const progress = onboardingProgress(items, seenOutfits);
+  // "?hung=3": the person has just added photos while getting set up (components/HungNote.tsx).
+  const hung = parseHung(params.hung);
 
   return (
     <>
@@ -30,7 +36,7 @@ export default async function HomePage() {
           </span>
         </div>
       )}
-      <Storefront items={items} progress={progress} />
+      <Storefront items={items} progress={progress} hung={hung} />
     </>
   );
 }

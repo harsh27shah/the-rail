@@ -73,3 +73,45 @@ export function onboardingProgress(items: Item[], seenOutfits: boolean): Onboard
     roundOut: missingOuterwear > 0 ? `${missingOuterwear} more outerwear would round out your set.` : null,
   };
 }
+
+// ── Step 3: what happens right after an upload ─────────────────────────────────────────────────
+
+export type Destination = { kind: "stay" } | { kind: "go"; href: string };
+
+/**
+ * Where to send someone once their photos have been read (components/AddPhotosForm.tsx).
+ *
+ * While a person is still getting set up (`onboarding`: they haven't seen outfits yet) they always
+ * land on the rail, even after a single photo that made one piece, because that is where the
+ * progress card lives (a lone piece's own page has no hint of what to do next). The rail then shows a
+ * one-line "Hung N pieces" note (`?hung=N`, see HungNote). Everyone else keeps the original rule: one
+ * new piece opens its page, anything else goes to the rail. If any photo failed or was skipped they
+ * stay on the Add page so they can see which, as before.
+ */
+export function afterUploadDestination(o: { onboarding: boolean; ids: string[]; failures: number; skipped: number }): Destination {
+  if (o.failures > 0 || o.skipped > 0) return { kind: "stay" };
+  if (o.onboarding && o.ids.length > 0) return { kind: "go", href: `/?hung=${o.ids.length}` };
+  if (o.ids.length === 1) return { kind: "go", href: `/item/${o.ids[0]}` };
+  return { kind: "go", href: "/" };
+}
+
+/** Reads the `hung` address parameter. Anything that isn't a plain number from 1 to 200 counts as none (0). */
+export function parseHung(value: string | string[] | undefined): number {
+  const s = Array.isArray(value) ? value[0] : value;
+  if (!s || !/^\d{1,3}$/.test(s)) return 0;
+  const n = Number(s);
+  return n >= 1 && n <= 200 ? n : 0;
+}
+
+export function hungMessage(n: number): string {
+  return `Hung ${n} piece${n === 1 ? "" : "s"} on your rail.`;
+}
+
+// ── Step 4: each person's progress on the owner's Invite page ──────────────────────────────────
+
+/** "12 pieces · saw outfits", "7 pieces · hasn't seen outfits yet", "0 pieces · signed in, added nothing". */
+export function friendProgressLine(p: { pieces: number; seenOutfits: boolean; signedIn: boolean }): string {
+  const count = `${p.pieces} piece${p.pieces === 1 ? "" : "s"}`;
+  if (p.pieces === 0) return p.signedIn ? `${count} · signed in, added nothing` : "No pieces yet";
+  return `${count} · ${p.seenOutfits ? "saw outfits" : "hasn't seen outfits yet"}`;
+}

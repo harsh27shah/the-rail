@@ -1820,3 +1820,25 @@ a.outfit-tile:focus-visible .frame {
 .onb-ready .onb-message {
   margin: 0;
 }
+
+/* ---------- first-run onboarding step 3: the "Hung N pieces" note; step 4: progress on the Invite page ---------- */
+.onb-hung {
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent);
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+@media (max-width: 700px) {
+  .onb-hung {
+    padding: 10px 16px;
+  }
+}
+.invite-progress {
+  flex-basis: 100%;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink);
+}

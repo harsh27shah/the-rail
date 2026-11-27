@@ -62,3 +62,27 @@ export async function listMembers(): Promise<Member[]> {
   }
   return out.sort((a, b) => b.joined.localeCompare(a.joined));
 }
+
+export interface MemberProgress {
+  pieces: number;
+  seenOutfits: boolean;
+}
+
+/**
+ * How far each person has got: how many pieces they have, and whether any outfits have been worked
+ * out for them (the same "has seen outfits" test the progress card uses). Counts only, never photos.
+ * One pair of cheap counts per person, so it needs no database change.
+ */
+export async function memberProgress(userIds: string[]): Promise<Map<string, MemberProgress>> {
+  const out = new Map<string, MemberProgress>();
+  await Promise.all(
+    userIds.map(async (id) => {
+      const [items, outfits] = await Promise.all([
+        db().from("items").select("id", { count: "exact", head: true }).eq("user_id", id),
+        db().from("outfit_sets").select("hero_item_id", { count: "exact", head: true }).eq("user_id", id).eq("status", "ready"),
+      ]);
+      out.set(id, { pieces: items.count ?? 0, seenOutfits: (outfits.count ?? 0) > 0 });
+    })
+  );
+  return out;
+}

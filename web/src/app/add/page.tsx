@@ -3,6 +3,7 @@ import { AddPhotosForm } from "@/components/AddPhotosForm";
 import { AddTips } from "@/components/AddTips";
 import { requireUser } from "@/lib/auth";
 import { getItems } from "@/lib/items";
+import { userHasSeenOutfits } from "@/lib/outfit-store";
 
 // Each photo is its own request now (see addPhotoAction), so a function invocation only ever
 // handles one photo's tagging + upload — background extraction still runs via after() and
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
 
 export default async function AddPage() {
   const user = await requireUser();
-  const pieceCount = (await getItems(user.id)).length;
+  const [items, seenOutfits] = await Promise.all([getItems(user.id), userHasSeenOutfits(user.id)]);
+  const pieceCount = items.length;
   return (
     <div className="form-page">
       <h1>Add pieces</h1>
@@ -28,8 +30,10 @@ export default async function AddPage() {
           gpPickerUri/gpError coming back from the OAuth callback redirect) — Next.js
           requires one around any client-side use of that hook. */}
       <Suspense fallback={null}>
-        {/* Owner only until the Google app is published (see AddPhotosForm). */}
-        <AddPhotosForm showGoogleImport={user.isOwner} />
+        {/* Google import: owner only until the Google app is published (see AddPhotosForm).
+            `onboarding`: still getting set up (hasn't seen outfits), so after an upload they land on the
+            rail, where the progress card is (see lib/onboarding.ts, afterUploadDestination). */}
+        <AddPhotosForm showGoogleImport={user.isOwner} onboarding={!seenOutfits} />
       </Suspense>
     </div>
   );

@@ -1,6 +1,7 @@
 import { InviteForm } from "@/components/InviteForm";
 import { requireOwner } from "@/lib/auth";
-import { listMembers } from "@/lib/invites";
+import { listMembers, memberProgress } from "@/lib/invites";
+import { friendProgressLine } from "@/lib/onboarding";
 import { spendByUser } from "@/lib/usage";
 
 export const metadata = { title: "Invite · The Rail" };
@@ -8,6 +9,7 @@ export const metadata = { title: "Invite · The Rail" };
 export default async function InvitePage() {
   const me = await requireOwner();
   const [members, spend] = await Promise.all([listMembers(), spendByUser()]);
+  const progress = await memberProgress(members.map((m) => m.id));
   const byUser = new Map((spend ?? []).map((r) => [r.userId, r]));
   const unattributed = byUser.get(null);
   const monthTotal = (spend ?? []).reduce((n, r) => n + r.monthUsd, 0);
@@ -49,6 +51,13 @@ export default async function InvitePage() {
               </span>
               <span className="invite-meta">
                 {m.lastSignIn ? `Last in ${fmt(m.lastSignIn)}` : `Invited ${fmt(m.joined)} · not signed in yet`}
+              </span>
+              <span className="invite-progress">
+                {friendProgressLine({
+                  pieces: progress.get(m.id)?.pieces ?? 0,
+                  seenOutfits: progress.get(m.id)?.seenOutfits ?? false,
+                  signedIn: !!m.lastSignIn,
+                })}
               </span>
               {spend !== null && (
                 <span className="invite-spend">

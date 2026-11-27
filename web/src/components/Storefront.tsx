@@ -9,12 +9,22 @@ import { coverageGap } from "@/lib/coverage";
 import { ItemCard } from "./ItemCard";
 import { Welcome } from "./Welcome";
 import { OnboardingPanel } from "./OnboardingPanel";
+import { HungNote } from "./HungNote";
 import type { OnboardingProgress } from "@/lib/onboarding";
 import { bulkDeleteAction } from "@/app/actions";
 
 const NEUTRALS = ["black", "white", "grey", "gray", "navy", "beige", "cream", "brown", "tan", "charcoal"];
 
-export function Storefront({ items, progress = null }: { items: Item[]; progress?: OnboardingProgress | null }) {
+export function Storefront({
+  items,
+  progress = null,
+  hung = 0,
+}: {
+  items: Item[];
+  progress?: OnboardingProgress | null;
+  /** Number of pieces just added while getting set up (from `?hung=N`), or 0: shows the one-line note. */
+  hung?: number;
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<string>("All");
   const [query, setQuery] = useState("");
@@ -209,6 +219,7 @@ export function Storefront({ items, progress = null }: { items: Item[]; progress
           </>
       </div>
 
+      {hung > 0 && <HungNote count={hung} />}
       {progress && <OnboardingPanel progress={progress} />}
 
       <div className="rail" ref={railRef}>

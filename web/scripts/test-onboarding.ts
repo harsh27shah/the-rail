@@ -91,5 +91,31 @@ check("footwear never counts towards or against the goal", kind([...many("Tops",
 check("message wording: one of each", unlockMessage(1, 1) === "1 more top and 1 more bottom unlock outfits.");
 check("message wording: single and plural", unlockMessage(0, 1) === "1 more bottom unlocks outfits." && unlockMessage(3, 0) === "3 more tops unlock outfits.");
 
+// ── step 3: after an upload ──
+import { afterUploadDestination, friendProgressLine, hungMessage, parseHung } from "@/lib/onboarding";
+
+const dest = (o: Partial<Parameters<typeof afterUploadDestination>[0]>) => afterUploadDestination({ onboarding: false, ids: [], failures: 0, skipped: 0, ...o });
+const href = (d: ReturnType<typeof afterUploadDestination>) => (d.kind === "go" ? d.href : "stay");
+
+check("onboarding + one new piece lands on the rail (not the piece's page)", href(dest({ onboarding: true, ids: ["a"] })) === "/?hung=1");
+check("onboarding + several new pieces lands on the rail with the count", href(dest({ onboarding: true, ids: ["a", "b", "c"] })) === "/?hung=3");
+check("not onboarding + one new piece still opens that piece (the original rule)", href(dest({ ids: ["abc"] })) === "/item/abc");
+check("not onboarding + several pieces still goes to the plain rail", href(dest({ ids: ["a", "b"] })) === "/");
+check("a failed photo keeps the person on the Add page, even while onboarding", href(dest({ onboarding: true, ids: ["a"], failures: 1 })) === "stay");
+check("a skipped photo keeps the person on the Add page", href(dest({ onboarding: true, ids: ["a"], skipped: 1 })) === "stay");
+check("onboarding with nothing made goes to the plain rail, not '?hung=0'", href(dest({ onboarding: true, ids: [] })) === "/");
+
+check("parseHung reads a plain number", parseHung("3") === 3 && parseHung(["4", "9"]) === 4);
+check("parseHung ignores anything odd (no number, zero, negative, huge, text, markup)",
+  [undefined, "", "0", "-2", "999", "12abc", "1.5", "<b>", " 3"].every((v) => parseHung(v) === 0));
+check("the note says 'piece' for one and 'pieces' for more", hungMessage(1) === "Hung 1 piece on your rail." && hungMessage(3) === "Hung 3 pieces on your rail.");
+
+// ── step 4: the Invite page's progress line ──
+check("progress line: saw outfits", friendProgressLine({ pieces: 12, seenOutfits: true, signedIn: true }) === "12 pieces · saw outfits");
+check("progress line: has pieces, hasn't seen outfits", friendProgressLine({ pieces: 7, seenOutfits: false, signedIn: true }) === "7 pieces · hasn't seen outfits yet");
+check("progress line: signed in but added nothing", friendProgressLine({ pieces: 0, seenOutfits: false, signedIn: true }) === "0 pieces · signed in, added nothing");
+check("progress line: never signed in", friendProgressLine({ pieces: 0, seenOutfits: false, signedIn: false }) === "No pieces yet");
+check("progress line: one piece is singular", friendProgressLine({ pieces: 1, seenOutfits: false, signedIn: true }) === "1 piece · hasn't seen outfits yet");
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

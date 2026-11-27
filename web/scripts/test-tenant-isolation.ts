@@ -139,7 +139,7 @@ async function main() {
   // Give B's items photos distinguishable from "still extracting" so they'd *qualify* as
   // candidates — the only thing keeping them out of A's results should be the user scope.
   await admin!.from("items").update({ image_path: "b-extracted.jpg", original_image_path: "b-original.jpg" }).in("id", [b1, b2]);
-  const candidates = await findDuplicateCandidates(A, "Tops", "isolation-test-teal", "A's shirt", a1);
+  const candidates = await findDuplicateCandidates(A, "Tops", a1);
   check("findDuplicateCandidates(A) never returns B's items", candidates.every((c) => c.id !== b1 && c.id !== b2));
 
   console.log("\nThe duplicate queue and resolving it");

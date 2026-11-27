@@ -1480,6 +1480,55 @@ Suggested build order:
       site's cookies, or wait up to an hour. A cancelled-but-valid-looking cookie also makes the proxy think they are
       signed in for that hour; every real page re-checks, so nothing is exposed, they just land on the login page.
 
+38. 🟡 **Duplicate finder: higher recall and about a quarter of the cost — built and checked locally, not live**
+    (2026-11-27). The owner's two problems with auto-duplicate detection: quite a few duplicates slipped through and
+    needed manual marking, and it was too costly (about 9 cents per new piece with no twin, up to 15). Measured first,
+    then built.
+    - **Why duplicates slipped through (measured on the owner's wardrobe, no AI).** Candidates were pieces sharing a
+      colour or name WORD with the new piece, then the first 5 in database order. The AI names each photo's piece
+      in its own words, so a true twin could share none ("Off-white pullover" vs "Cream fleece snap neck") and be
+      dropped before any comparison. And a typical piece had 7 look-alike candidates (35 of 49 pieces had more than
+      5), so the cap bit nearly every time and only the 5 oldest were ever looked at.
+    - **The experiment.** The owner's wardrobe had no real duplicates left (cleaned by hand; all 38 suspect pairs
+      I checked by eye were different garments), so 12 test cases were made: a new photo of a piece the owner
+      already has (cropped, tilted, re-lit from its own original), sent through the real pipeline (read the photo,
+      make the clean product shot). Each was run two ways: twin present (is it found?) and twin removed (false
+      alarm?). Spend $3.11 of a $5.50 cap. Everything is in `eval-data/duplicates/` (cached answers, so re-runs
+      are free) and the scripts `scripts/eval-dup-shortlist.ts`, `scripts/eval-dup-experiment.ts`.
+      | Method | Twins found | False alarms | Cost per new piece (twin / no twin) |
+      |---|---|---|---|
+      | Old: word filter, first 5, full-size photos | 9 of 12 | 0 | 5.8¢ / 9.0¢ |
+      | Ranked top 3, full-size photos | 11 of 12 | 0 | about 4.4¢ |
+      | Ranked top 3, photos shrunk to 640px | 9 of 12 | 0 | about 1.6¢ |
+      | Ranked top 3, product shots only | 4 of 12 | 0 | about 1¢ |
+      | One call, contact sheet of all same-category pieces | 9 of 12 | 2 of 12 | about 0.8¢ |
+      | **Cascade (chosen)** | **11 of 12** | **0** | **1.3¢ / 2.4¢** |
+    - **What shipped: `lib/duplicates.ts`.** (1) Rank every same-category piece by tag similarity (main colour,
+      name and colour words, pattern, material, formality) and look at the top 3; the twin was in the top 2 in 12
+      of 12 cases. (2) Cascade: each shortlisted piece gets a cheap look (the four photos shrunk to 640px); a
+      confident "same" (0.6 or more) stops there; only a cheap "different" below 0.9 confidence (or a failed cheap
+      look) gets a careful full-size look. The cheap look's wrong answers on real twins were all low confidence
+      (0.68, 0.82); 36 right answers on look-alikes had a median of 0.98. 0.85 to 0.95 tested identically, so 0.9.
+      Pieces already flagged as duplicates are no longer candidates (their twin is already in the pool). Wiring in
+      `lib/add-photo.ts`; `findDuplicateCandidates` now returns every same-category piece with its tags; each
+      upload logs one `[duplicates]` line with how many comparisons it made.
+    - **Not chosen, and why.** The one-call contact sheet is cheapest but flagged lookalikes in 2 of 12 cases (a
+      false alarm costs the person a review). Product-shots-only lost most twins. Small photos alone cost 1.6¢ but
+      missed 3 twins, which the careful second look recovers.
+    - **Checked.** `scripts/test-duplicates.ts` (22 checks: a twin sharing no words is still ranked first, the
+      thresholds at exactly 0.6 and 0.9, a failed look, stopping at the first match, call counts; two rules were
+      deliberately broken to show the tests catch them); `scripts/test-tenant-isolation.ts` (45) still passes with
+      the changed finder; all other suites pass. End to end in the running app on the test account: two re-photographed
+      pieces were uploaded and the live path logged, for example, "13 same-category pieces, looked at 3, 1 cheap
+      + 0 full-size comparisons, twin found"; the pieces it flagged (olive cargo trousers, navy crewneck jumper, light
+      jeans, and a white tee that is the same garment seen under a fleece) were real twins by eye, nothing was wrongly
+      flagged, and a piece with no twin cost 3 cheap comparisons.
+    - **Limits, honest.** The test cases are an imitation of real duplicates, there are only 12, and the careful
+      look's escalation rule rests on 3 wrong cheap answers. One case (white sneakers) was missed by every method,
+      and may not be a true twin. The careful look was never exercised in the live run (no cheap look was unsure),
+      only in the saved experiment and the fake-AI tests. `scripts/backfill-duplicates.mjs` still uses the old method.
+      Pieces from the same bulk upload that haven't finished cleaning are still skipped as candidates (BACKLOG.md).
+
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
 

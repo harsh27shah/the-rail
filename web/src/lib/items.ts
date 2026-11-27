@@ -1,5 +1,6 @@
 import "server-only";
 import { isCleaning } from "./cleaning";
+import type { PieceTags } from "./duplicates";
 import { getSupabaseAdmin } from "./supabase";
 import { MOCK_ITEMS } from "./mock-data";
 import type { Category, Item, Pattern, Season } from "./types";
@@ -394,34 +395,18 @@ export async function downloadImage(path: string): Promise<DownloadedImage> {
 
 // --- Duplicate detection (PROJECT.md §5) ---------------------------------------------
 
-const STOP_WORDS = new Set(["a", "an", "the", "and", "with", "for", "in", "on", "of", "to"]);
-
-function significantWords(s: string): Set<string> {
-  return new Set(
-    s
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
-  );
-}
-
-function wordsOverlap(a: Set<string>, b: Set<string>): boolean {
-  for (const w of a) if (b.has(w)) return true;
-  return false;
-}
-
-export interface DuplicateCandidate {
+export interface DuplicateCandidate extends PieceTags {
   id: string;
   imagePath: string;
   originalImagePath: string;
 }
 
 /**
- * Same-category existing items plausible enough to be worth an actual (costly) visual
- * comparison against a newly-added item — sharing a colour word or a name word. Keeps the
- * number of vision calls per upload small (a handful, not every same-category item) without
- * meaningfully hurting recall: two garments that share neither a colour word nor a name word
- * are unlikely to be the same physical item anyway.
+ * Every same-category piece a newly-added item could be a twin of: all of them, not a pre-filtered few. Which
+ * few are actually looked at is decided afterwards by ranking (`shortlist` in lib/duplicates.ts). This used
+ * to keep only pieces sharing a colour or name word and then the first 5 in database order, which dropped
+ * real twins before any comparison (PROJECT.md §5 item 38). Pieces already flagged as a duplicate of
+ * something are left out: their twin is in the pool already, so comparing against both is wasted money.
  *
  * Returns both of a candidate's photos — `compareGarmentPhotos` (lib/anthropic.ts) uses
  * both together, on both sides of the comparison. See that function's comment for the full
@@ -436,43 +421,43 @@ export interface DuplicateCandidate {
 export async function findDuplicateCandidates(
   userId: string,
   category: Category,
-  color: string,
-  name: string,
-  excludeId: string,
-  limit = 5
+  excludeId: string
 ): Promise<DuplicateCandidate[]> {
   const admin = getSupabaseAdmin();
   if (!admin) return [];
 
   const { data, error } = await admin
     .from("items")
-    .select("id, name, color, image_path, original_image_path")
+    .select("id, name, color, palette, pattern, material, formality, image_path, original_image_path")
     .eq("user_id", userId)
     .eq("category", category)
     .neq("id", excludeId)
+    .is("duplicate_of", null)
     .not("image_path", "is", null);
   if (error) throw new Error(error.message);
 
-  const colorWords = significantWords(color);
-  const nameWords = significantWords(name);
   const rows = data as {
     id: string;
     name: string;
     color: string;
+    palette: string[] | null;
+    pattern: string;
+    material: string;
+    formality: number;
     image_path: string | null;
     original_image_path: string | null;
   }[];
 
   return rows
     .filter((row) => row.image_path && row.original_image_path && row.image_path !== row.original_image_path)
-    .filter(
-      (row) =>
-        wordsOverlap(colorWords, significantWords(row.color)) ||
-        wordsOverlap(nameWords, significantWords(row.name))
-    )
-    .slice(0, limit)
     .map((row) => ({
       id: row.id,
+      name: row.name,
+      color: row.color,
+      palette: row.palette ?? [],
+      pattern: row.pattern,
+      material: row.material,
+      formality: row.formality,
       imagePath: row.image_path as string,
       originalImagePath: row.original_image_path as string,
     }));

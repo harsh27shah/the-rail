@@ -18,16 +18,11 @@ Each line: what it is → why it's parked / what triggers doing it.
     about half a minute; reword it to match.
   - Parked, not part of onboarding: a "what's your style?" quiz (fits the "find your style" headline,
     but it's a separate feature).
-- [ ] **Duplicate checking is the biggest AI cost per piece: look at trimming it** (found 2026-11-27 from
-  the new per-friend spend on the Invite page). One test session on the owner's second account made 108
-  AI calls and cost about $3.34: 48 duplicate checks (~$1.50, about 3 cents each, 4 images per
-  comparison, up to 5 comparisons for every new piece), 31 background removals (~$1.29), 15 photo reads
-  (~$0.33) and 8 outfit generations (~$0.16). A piece can cost about 10 to 25 cents once its duplicate
-  checks are counted, so 10 friends adding 12 pieces each could reach roughly $12 to $30, and the
-  $25 monthly Anthropic limit set on 2026-11-25 could be hit. Ideas: compare against fewer candidates
-  (2 or 3 instead of 5), skip the check for a person's first few pieces, or compare in one call. Test
-  that it doesn't miss real duplicates (see the duplicate-detection item).
-
+- [x] ~~**Duplicate checking is the biggest AI cost per piece: look at trimming it**~~ **Built and checked locally
+  2026-11-27, awaiting an upload** (PROJECT.md §5 item 38). A new piece with no twin now costs about 2.4 cents
+  to check (was about 9), and more real twins are found (11 of 12 in the test, was 9 of 12). Still open from it:
+  `scripts/backfill-duplicates.mjs` still uses the old method (update it before the next run), and pieces from the
+  same bulk upload that haven't finished cleaning are still skipped as candidates (see the item below).
 - [x] **Large photos fail on the deployed site.** **Fixed and confirmed live:** the Fuji photo that
   failed now uploads fine (PROJECT.md §5 item 28). A Fuji camera photo (DSCF2147.JPG) failed
   with "An unexpected response was received from the server", most likely Vercel's ~4.5 MB limit
@@ -198,6 +193,9 @@ on that item's page. It replaces today's single-item "styles well with" suggesti
 - [ ] Measuring "suggestions actually worn" (the north star) and wear logging. Not now, but every
   week without wear data is data lost (PROJECT.md §2).
 - [ ] Validate shoe and outerwear pairings; so far only top-and-bottom pairs have been rated.
+- [ ] Make it social: style your avatar in an outfit and share it with a friend or partner for
+  their verdict. Builds on M3 (your own avatar); sharing means someone else sees your
+  likeness, so handle it with the same care.
 
 ## Roadmap use cases (from PROJECT.md §2 and the PRD feature table)
 
@@ -385,13 +383,15 @@ say so. Items you'd already struck through are listed as done.
 
 ## Photo ingestion — known gaps
 
-- [ ] **Duplicate detection is missing clear duplicates** (reported 2026-11-23). The quilted beige
-  jacket is an obvious duplicate by eye and the app didn't flag it. Not yet investigated.
-  Possible causes to check, none confirmed: the shortlist step only compares items that share
-  a colour word or a name word (so "beige" vs "cream" might never get compared), the shortlist
-  is capped at 5, an item still being cleaned up at the time is skipped, or the model simply
-  said "different". Workaround today: "Mark as duplicate" on the item. History worth
-  remembering: this feature already took four attempts to get right (PROJECT.md §5 item 13).
+- [ ] **Duplicate detection is missing clear duplicates** (reported 2026-11-23). **Mostly addressed
+  2026-11-27, awaiting an upload** (PROJECT.md §5 item 38): confirmed causes were the word-overlap shortlist
+  dropping twins the AI had named with different words (and the cap of 5 in database order); both are replaced by
+  ranking every same-category piece. **Still open:** (1) a piece from the same bulk upload that hasn't finished
+  cleaning is skipped as a candidate and never re-checked (a "check again once it's ready" step is needed);
+  (2) a twin the model rates "same" below 0.6, or "different" with high confidence, is still missed (one of 12
+  test cases, a white-sneaker pair, was missed by every method); (3) wardrobes that already contain duplicates
+  from before aren't re-scanned (the backfill script is the way). Workaround today: "Mark as duplicate" on the
+  item. History worth remembering: this feature already took four attempts to get right (PROJECT.md §5 item 13).
 - [ ] **Claude can undercount people.** If it reads a photo fine but says "one person" when there
   are two, the "which one is you?" picker never appears (the white-tee case may have been
   this). Option: run person detection on every photo — costs an extra Gemini call each and

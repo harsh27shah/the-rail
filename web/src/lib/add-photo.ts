@@ -2,17 +2,13 @@ import "server-only";
 import { after } from "next/server";
 import { compareGarmentPhotos, tagPhoto, type TagPhotoResult, type TaggedFields } from "@/lib/anthropic";
 import { cropToPersonBox } from "@/lib/crop";
+import { DUPLICATE_SMALL_SIDE, findTwin, shortlist } from "@/lib/duplicates";
 import { detectPeople, extractGarmentImage, type PersonBox } from "@/lib/gemini";
 import { analysePhoto, BLANK_GARMENT, normalizeUpload, shrinkForAi } from "@/lib/ingest";
 import { UploadRejected, createUploadTarget, discardUpload, isOwnUploadPath, readUpload } from "@/lib/incoming";
 import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, getCleaningIds, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 import { trackUsageFor, withUsageUser } from "@/lib/usage";
-
-// A "same" verdict below this confidence isn't flagged — Claude's own calibration puts
-// genuine matches at 0.75+ and confidently-different pairs at 0.98+ (see PROJECT.md §5's
-// spike notes), so this is a wide safety margin, not a tight threshold.
-const DUPLICATE_CONFIDENCE_THRESHOLD = 0.6;
 
 /**
  * The Add page's server work, as plain functions that take the signed-in user's id. They are called by
@@ -244,26 +240,58 @@ async function catalogueGarments(
       // the periodic backfill script catches it once it's ready.
       if (!extracted) return;
       try {
-        const candidates = await findDuplicateCandidates(userId, category, color, name, id);
-        for (const candidate of candidates) {
-          try {
-            // Stored originals are full resolution and can be too big for Claude: shrink for the comparison.
-            const [candidateExtracted, candidateOriginal] = await Promise.all([
-              downloadImage(candidate.imagePath).then(shrinkForAi),
-              downloadImage(candidate.originalImagePath).then(shrinkForAi),
-            ]);
-            const result = await compareGarmentPhotos(
-              { original: { base64, mimeType }, extracted: { base64: extracted.data, mimeType: extracted.mimeType } },
-              { original: candidateOriginal, extracted: candidateExtracted }
+        // Rank every same-category piece by how alike it looks from its tags, look at the closest few
+        // cheaply first and carefully only when unsure (lib/duplicates.ts explains why and shows the numbers).
+        const pool = await findDuplicateCandidates(userId, category, id);
+        const near = shortlist(
+          { name, color, palette: t.palette || [], pattern: asPattern(t.pattern), material: t.material || "", formality: t.formality || 3 },
+          pool
+        );
+        if (near.length === 0) return;
+
+        type Photos = { original: { base64: string; mimeType: string }; extracted: { base64: string; mimeType: string } };
+        const shrinkPair = async (p: Photos, side: number): Promise<Photos> => ({
+          original: await shrinkForAi(p.original, side),
+          extracted: await shrinkForAi(p.extracted, side),
+        });
+        // This piece's own photos, at both sizes (the small pair only if a cheap look happens at all).
+        const mineFull: Photos = { original: { base64, mimeType }, extracted: { base64: extracted.data, mimeType: extracted.mimeType } };
+        let mineSmall: Promise<Photos> | null = null;
+        // A candidate's photos are downloaded once and reused for both sizes. Stored originals are full
+        // resolution and can be too big for Claude, so the "full" copy is already shrunk to the AI's limit.
+        const theirs = new Map<string, Promise<{ full: Photos; small: Promise<Photos> | null }>>();
+        const theirPhotos = (c: (typeof near)[number]) => {
+          if (!theirs.has(c.id)) {
+            theirs.set(
+              c.id,
+              Promise.all([downloadImage(c.originalImagePath).then((p) => shrinkForAi(p)), downloadImage(c.imagePath).then((p) => shrinkForAi(p))]).then(
+                ([original, extractedPhoto]) => ({ full: { original, extracted: extractedPhoto }, small: null })
+              )
             );
-            if (result.verdict === "same" && result.confidence >= DUPLICATE_CONFIDENCE_THRESHOLD) {
-              await flagDuplicate(userId, id, candidate.id, result.why, result.confidence);
-              break; // one flagged match is enough to surface for review
-            }
-          } catch (e) {
-            console.error("Duplicate comparison failed for item", id, "vs", candidate.id, e);
           }
-        }
+          return theirs.get(c.id)!;
+        };
+
+        const counts = { small: 0, full: 0, failed: 0 };
+        const twin = await findTwin(
+          near,
+          async (candidate, size) => {
+            const their = await theirPhotos(candidate);
+            if (size === "full") return compareGarmentPhotos(mineFull, their.full);
+            mineSmall ??= shrinkPair(mineFull, DUPLICATE_SMALL_SIDE);
+            their.small ??= shrinkPair(their.full, DUPLICATE_SMALL_SIDE);
+            return compareGarmentPhotos(await mineSmall, await their.small);
+          },
+          (candidate, size, v) => {
+            if (v) counts[size]++; else counts.failed++;
+          }
+        );
+        console.log(
+          `[duplicates] ${id}: ${pool.length} same-category pieces, looked at ${near.length}, ` +
+            `${counts.small} cheap + ${counts.full} full-size comparisons${counts.failed ? `, ${counts.failed} failed` : ""}, ` +
+            (twin ? `twin found (${twin.look} look, ${twin.verdict.confidence})` : "no twin")
+        );
+        if (twin) await flagDuplicate(userId, id, twin.match.id, twin.verdict.why, twin.verdict.confidence);
       } catch (e) {
         console.error("Duplicate check failed for item", id, e);
       }

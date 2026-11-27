@@ -23,7 +23,7 @@ async function outfitsStateFor(userId: string, item: Item, allItems: Item[]): Pr
     if (readiness.kind === "too-small") return { ...readiness };
 
     const saved = await loadSet(userId, item.id);
-    if (saved?.status === "ready" && !isStale(saved, eligible, item.id)) {
+    if (saved?.status === "ready" && !isStale(saved, eligible, item)) {
       const byId = new Map(allItems.map((i) => [i.id, i]));
       const outfits = saved.outfits
         .filter((o) => o.itemIds.every((id) => byId.has(id)))

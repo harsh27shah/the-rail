@@ -414,6 +414,16 @@ say so. Items you'd already struck through are listed as done.
 - [x] ~~**Faster, more visual photo upload.**~~ **Built and checked locally 2026-11-27, awaiting an upload**
   (§5 item 35): a row per photo with its thumbnail, stage and the pieces it became, three at a time,
   straight to the rail when the last is read. Still open from it: a per-row "try again" for failed photos.
+- [ ] **Show the old outfits while new ones are made (no wait).** When a relevant new piece triggers a redo
+  (§5 item 36), the page shows "putting outfits together" for 6 to 30 seconds. Better: keep showing the saved
+  outfits with a small "updating with your new pieces" note and swap in the new ones when ready. Needs a
+  small build. → Do it if the wait feels bad in real use. Also still open from the same discussion: a
+  per-person monthly AI spend limit before friends use this heavily.
+- [ ] **A photo waiting on "which one is you?" is easy to miss.** On the new Add page (§5 item 35) the
+  other photos finish and the page just stays put, with only "1 needs you" in the summary line and the
+  row's label; if the person has scrolled down past the picker they see a page that never finishes. Ideas:
+  a highlighted "Tap which one is you" banner, or scrolling to the picker once the others are done.
+  Added 2026-11-27, not built.
 - [ ] **Baseball cap catalogued as a Top** (once, on the rain-jacket photo). Accessories are meant to
   be skipped. Not obviously caused by recent changes. → Watch for a repeat; tighten the
   accessories rule if it does.

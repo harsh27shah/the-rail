@@ -169,14 +169,38 @@ async function main() {
 
   // ── staleness ──
   const e = eligibleItems(wardrobe);
-  const saved = { outfits: [{ itemIds: [tops[0].id, bottoms[0].id], why: "x" }], wardrobeSize: e.length, engineVersion: OUTFIT_ENGINE_VERSION };
-  check("fresh saved outfits are kept", !isStale(saved, e, tops[0].id));
-  check("an older engine version triggers regeneration", isStale({ ...saved, engineVersion: "old" }, e, tops[0].id));
-  check("a piece that was deleted triggers regeneration", isStale(saved, e.filter((i) => i.id !== bottoms[0].id), tops[0].id));
-  check("a piece now flagged as a duplicate triggers regeneration", isStale(saved, eligibleItems(wardrobe.map((i) => (i.id === bottoms[0].id ? { ...i, duplicateOfId: "x" } : i))), tops[0].id));
-  check("a small wardrobe change is tolerated", !isStale(saved, [...e, mk("New", "Tops"), mk("New2", "Tops")], tops[0].id));
-  check("a big wardrobe change triggers regeneration", isStale(saved, [...e, ...Array.from({ length: 5 }, (_, i) => mk(`N${i}`, "Tops"))], tops[0].id));
-  check("a hero that is itself flagged as a duplicate does not make its own outfits stale", !isStale(saved, e.filter((i) => i.id !== tops[0].id), tops[0].id));
+  const GEN = 10_000_000; // when the saved outfits were worked out
+  const MIN = 60_000, WINDOW = 90_000; // the cleaning window is 90s
+  const saved = { outfits: [{ itemIds: [tops[0].id, bottoms[0].id], why: "x" }], engineVersion: OUTFIT_ENGINE_VERSION, generatedAt: GEN };
+  const newer = (name: string, category: string, added: number, extra: Partial<Item> = {}) => mk(name, category, { added, ...extra });
+  const hero = tops[0];
+
+  check("fresh saved outfits are kept", !isStale(saved, e, hero));
+  check("an older engine version triggers regeneration", isStale({ ...saved, engineVersion: "old" }, e, hero));
+  check("a piece that was deleted triggers regeneration", isStale(saved, e.filter((i) => i.id !== bottoms[0].id), hero));
+  check("a piece now flagged as a duplicate triggers regeneration", isStale(saved, eligibleItems(wardrobe.map((i) => (i.id === bottoms[0].id ? { ...i, duplicateOfId: "x" } : i))), hero));
+  check("a hero that is itself flagged as a duplicate does not make its own outfits stale", !isStale(saved, e.filter((i) => i.id !== hero.id), hero));
+  check("saved outfits with no recorded time are redone", isStale({ ...saved, generatedAt: null }, e, hero));
+
+  // new pieces: only ones that could appear in THIS piece's outfits count, and one is enough
+  check("ONE new bottom added since triggers a redo for a top", isStale(saved, [...e, newer("New jeans", "Bottoms", GEN + MIN)], hero));
+  check("one new pair of shoes triggers a redo for a top", isStale(saved, [...e, newer("New shoes", "Footwear", GEN + MIN)], hero));
+  check("one new coat triggers a redo for a top", isStale(saved, [...e, newer("New coat", "Outerwear", GEN + MIN)], hero));
+  check("a new TOP does not change another top's outfits (an outfit never holds two tops)", !isStale(saved, [...e, newer("New tee", "Tops", GEN + MIN)], hero));
+  check("…but a new top does change a bottom's outfits", isStale({ ...saved, outfits: [{ itemIds: [hero.id, bottoms[0].id], why: "x" }] }, [...e, newer("New tee", "Tops", GEN + MIN)], bottoms[0]));
+  check("a new piece of a category with no slot (e.g. an old Accessories row) is ignored", !isStale(saved, [...e, newer("Belt", "Accessories", GEN + MIN)], hero));
+  check("a piece added BEFORE the outfits were made, long enough before, is not new", !isStale(saved, [...e, newer("Old jeans", "Bottoms", GEN - 10 * MIN)], hero));
+  check("a new piece flagged as a duplicate does not trigger anything", !isStale(saved, eligibleItems([...wardrobe, newer("Dup jeans", "Bottoms", GEN + MIN, { duplicateOfId: "x" })]), hero));
+  check("add one, remove an unrelated one: still stale because of the add (a count would have missed this)",
+    isStale(saved, [...e.filter((i) => i.id !== shoes[0].id && i.id !== outer[0].id), newer("New jeans", "Bottoms", GEN + MIN)], hero) === true);
+
+  // the cleaning trap
+  check("a new piece still being cleaned is not a reason to redo yet (it would be left out again)", !isStale(saved, [...e, newer("Fresh jeans", "Bottoms", GEN + MIN, { cleaning: true })], hero));
+  check("…once its photo is ready, the next visit does redo", isStale(saved, [...e, newer("Fresh jeans", "Bottoms", GEN + MIN, { cleaning: false })], hero));
+  check("a piece added just BEFORE the outfits were made (inside the cleaning window) counts as new: it may have been left out",
+    isStale(saved, [...e, newer("Just-before jeans", "Bottoms", GEN - WINDOW + 5_000)], hero));
+  check("…and after that redo it settles (the redo's own time is later, so the same piece is no longer new)",
+    !isStale({ ...saved, generatedAt: GEN + 10 * MIN }, [...e, newer("Just-before jeans", "Bottoms", GEN - WINDOW + 5_000)], hero));
 
     // ── pieces still having their photo cleaned are left out of outfits ──
   {

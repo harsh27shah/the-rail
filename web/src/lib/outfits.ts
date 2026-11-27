@@ -1,4 +1,5 @@
 import { CATEGORY_COVERAGE } from "./coverage";
+import { CLEANING_WINDOW_MS } from "./cleaning";
 import type { Item } from "./types";
 
 /**
@@ -283,22 +284,42 @@ export async function generateOutfits(hero: Item, allItems: Item[], model: Model
 
 export interface SavedSet {
   outfits: Outfit[];
-  wardrobeSize: number | null;
   engineVersion: string | null;
+  /** When these outfits were worked out (epoch ms). Compared with when pieces were added. */
+  generatedAt: number | null;
 }
 
-/** How much the wardrobe may grow or shrink before saved outfits are worked out again. */
-const WARDROBE_DRIFT = 5;
-
-/** Saved outfits stay until something real changes: a piece in them is gone (deleted, or now
- * flagged as a duplicate), the wardrobe has moved a lot, or the engine was improved. Opening an
- * item never costs anything while they hold. */
-export function isStale(saved: SavedSet, eligible: Item[], heroId: string): boolean {
+/**
+ * Saved outfits stay until something real changes (decided with the owner, 2026-11-27):
+ *  - a piece in them is gone (deleted, or now flagged as a duplicate);
+ *  - a piece was added since that could actually appear in THIS piece's outfits (see below);
+ *  - the engine was improved.
+ * Nothing is worked out until someone opens the piece, so this only decides whether the saved
+ * outfits shown on that visit are still good. Opening a piece never costs anything while they hold.
+ *
+ * "Could appear" = a new piece in a different slot to the hero: a new top changes the outfits of
+ * trousers, shoes and outerwear, but not of another top (an outfit never holds two tops).
+ *
+ * Why "added since", by time, and not a count of pieces: a count misses add-one-remove-one, and it
+ * can't tell a piece that was left out because its photo was still being cleaned at the time (it
+ * isn't offered to the stylist until its clean photo exists, see `planFor`). So:
+ *  - a piece still being cleaned right now is not a reason to redo anything yet (it would be left
+ *    out again); the redo happens on a later visit, once its photo is ready;
+ *  - a piece added within the cleaning window BEFORE the outfits were made may have been left out
+ *    for that reason, so it counts as new. (Worst case: one extra redo, never a missing piece.)
+ */
+export function isStale(saved: SavedSet, eligible: Item[], hero: Item): boolean {
   if (saved.engineVersion !== OUTFIT_ENGINE_VERSION) return true;
   // The hero is always allowed in its own outfits, even if it is itself flagged as a duplicate
   // (and so not in `eligible`); without this its page would regenerate on every single visit.
-  const ids = new Set([...eligible.map((i) => i.id), heroId]);
+  const ids = new Set([...eligible.map((i) => i.id), hero.id]);
   if (saved.outfits.some((o) => o.itemIds.some((id) => !ids.has(id)))) return true;
-  if (saved.wardrobeSize == null || Math.abs(eligible.length - saved.wardrobeSize) >= WARDROBE_DRIFT) return true;
-  return false;
+
+  if (saved.generatedAt == null) return true;
+  const heroSlot = slotOf(hero.category);
+  const cutoff = saved.generatedAt - CLEANING_WINDOW_MS;
+  return eligible.some((i) => {
+    const slot = slotOf(i.category);
+    return i.id !== hero.id && !!slot && slot !== heroSlot && !i.cleaning && i.added > cutoff;
+  });
 }

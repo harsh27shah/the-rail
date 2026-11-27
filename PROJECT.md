@@ -1108,8 +1108,8 @@ Suggested build order:
       policies; schema in `supabase/schema.sql`, **run by hand**) via `lib/outfit-store.ts`. Outfits
       are generated from the item page when none are saved (`outfit-actions.ts`, a server action
       called by `components/OutfitsSection.tsx`, not during page render, so prefetching can't cost
-      money) and reused until: a piece in them is deleted or flagged a duplicate, the wardrobe
-      size moves by 5, or `OUTFIT_ENGINE_VERSION` changes. A "generating" claim stops two tabs
+      money) and reused until: a piece in them is deleted or flagged a duplicate, a relevant new piece
+      is added (item 36; this replaced "the wardrobe size moves by 5"), or `OUTFIT_ENGINE_VERSION` changes. A "generating" claim stops two tabs
       paying twice (a claim older than 3 minutes is treated as dead). If the table is missing the
       page falls back to the old single-item suggestions instead of breaking.
     - **Cost and speed (measured, rates assumed at $3 / $15 per million tokens):** about 2.5 cents
@@ -1124,8 +1124,7 @@ Suggested build order:
       sideways scroll. `scripts/test-tenant-isolation.ts` gained 12 checks (39 total), and was
       shown able to fail by deliberately disabling the ownership guard (4 failures), then restored.
     - **Known limits:** quality on shoes and outerwear is unmeasured; outerwear can be chosen in
-      summer (seasonality is deferred); the wardrobe-size drift rule means a person adding 5 pieces
-      sees a few seconds of "putting outfits together" per item opened afterwards; outfits with and
+      summer (seasonality is deferred); (the old wardrobe-size drift rule was replaced by item 36); outfits with and
       without outerwear shift the tiles left because tiles aren't aligned by category; the "failed"
       state doesn't retry by itself, only on the button; the failure path was tested by forcing the
       stored state, not by a real outage.
@@ -1429,6 +1428,33 @@ Suggested build order:
       (a failed photo is re-picked by hand); the time-left line is a rough average and ignores photos waiting on
       the person; a photo the detector reports as having two people (a half-visible figure at the edge of a mirror
       selfie, seen once) still asks "which one is you?", same as before.
+
+36. 🟡 **Saved outfits are redone when a relevant new piece is added, not when the wardrobe moves by 5 — built and
+    checked locally, not live** (2026-11-27). Prompted by the owner: outfits should pick up a newly added piece,
+    but only when someone opens a piece (so nothing costs money until then). Opening a piece was already the only
+    trigger; what changed is what counts as "out of date" (`isStale`, `lib/outfits.ts`).
+    - **The rule:** saved outfits are kept until a piece in them is gone, the engine version changes, or a piece
+      was added since they were made that could appear in THIS piece's outfits. "Could appear" means a different
+      category slot: a new top redoes trousers, shoes and outerwear, but not another top (an outfit never holds
+      two tops), which cuts roughly a third of redos. One new piece is enough (it was 5).
+    - **By time added, not by a count.** A count misses add-one-remove-one, and it hides a trap: a piece whose
+      photo is still being cleaned is left out of outfits (item 34), so redoing right then would leave the new
+      piece out AND mark the outfits as up to date, so it would never appear. So a piece still being cleaned is
+      not yet a reason to redo (the next visit, once its photo is ready, does it), and a piece added within the
+      90-second cleaning window before the outfits were made counts as new, in case it was left out. Worst case is
+      one extra redo, never a missing piece. No database change (it uses the existing `generated_at`).
+    - **Side effect, intended:** removing pieces that aren't in a piece's outfits no longer triggers a redo. The
+      four sets that were due a redo under the old rule (made at 54 pieces, now 49) are now kept.
+    - **Cost, honest version:** each redo is about 2.5 cents and 6 to 30 seconds of "putting outfits together" on
+      that page. After a batch of new pieces, each earlier piece someone opens pays that once. A person who adds a
+      batch and opens 8 pieces pays roughly 20 cents. Per-person spend limits are still open in `BACKLOG.md`.
+    - **Checked:** `scripts/test-outfits.ts` is 57 checks (14 new for this rule, including the cleaning trap and
+      the add-one-remove-one case); the new-piece rule and the same-slot rule were deliberately broken to show the
+      tests catch them. Run read-only against the owner's 16 real saved sets: all kept (nothing added since they
+      were made). **Not checked in the running app:** a real redo triggered by a new piece, since that spends an
+      AI call; the redo path itself is unchanged.
+    - **Not built (point 3 of the discussion):** showing the old outfits straight away while the new ones are made
+      in the background, so there is no wait. Worth doing if the wait feels bad; in `BACKLOG.md`.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

@@ -32,7 +32,7 @@ export async function generateOutfitsAction(itemId: string): Promise<GenerateOut
     if (wardrobeReadiness(eligible, hero).kind === "too-small") return { kind: "too-small" };
 
     const saved = await loadSet(user.id, itemId);
-    if (saved?.status === "ready" && !isStale(saved, eligible, hero.id)) return { kind: "ready" };
+    if (saved?.status === "ready" && !isStale(saved, eligible, hero)) return { kind: "ready" };
 
     if (!(await claimGeneration(user.id, itemId))) return { kind: "busy" };
 

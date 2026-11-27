@@ -117,7 +117,9 @@ export function planFor(hero: Item, eligible: Item[], count = OUTFIT_COUNT): Pla
   const bySlot = new Map<Slot, Item[]>();
   for (const i of eligible) {
     const s = slotOf(i.category);
-    if (!s || s === heroSlot || sameGarment(i)) continue;
+    // A piece whose photo is still being cleaned shows the person's raw original, which would mislead
+    // the stylist (a selfie or collage, not the garment): leave it out until its clean photo exists.
+    if (!s || s === heroSlot || sameGarment(i) || i.cleaning) continue;
     bySlot.set(s, [...(bySlot.get(s) ?? []), i]);
   }
 

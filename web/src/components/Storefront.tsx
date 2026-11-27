@@ -10,6 +10,7 @@ import { ItemCard } from "./ItemCard";
 import { Welcome } from "./Welcome";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { HungNote } from "./HungNote";
+import { AutoRefresh } from "./AutoRefresh";
 import type { OnboardingProgress } from "@/lib/onboarding";
 import { bulkDeleteAction } from "@/app/actions";
 
@@ -219,6 +220,8 @@ export function Storefront({
           </>
       </div>
 
+      {/* While any new piece is still having its photo cleaned up, quietly check back so it appears by itself. */}
+      <AutoRefresh active={items.some((i) => i.cleaning)} />
       {hung > 0 && <HungNote count={hung} />}
       {progress && <OnboardingPanel progress={progress} />}
 

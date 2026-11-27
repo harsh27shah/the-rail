@@ -40,8 +40,17 @@ export function ItemCard({
       }}
       style={selectMode ? { opacity: selected ? 1 : 0.55 } : undefined}
     >
-      <div className={`frame${item.imageUrl ? "" : " empty"}`}>
-        {item.imageUrl && <img src={item.imageUrl} alt="" />}
+      <div className={`frame${item.imageUrl || item.cleaning ? "" : " empty"}`}>
+        {/* A brand-new piece shows a placeholder, not the person's original photo (a selfie, a messy
+            background, a collage), until its clean photo arrives (lib/cleaning.ts); the page then swaps
+            it in by itself (components/AutoRefresh.tsx). */}
+        {item.cleaning ? (
+          <div className="cleaning" role="status">
+            <span>Cleaning up photo</span>
+          </div>
+        ) : (
+          item.imageUrl && <img src={item.imageUrl} alt="" />
+        )}
         {!selectMode && (item.needsReview || item.duplicateOfId) && (
           <div className="card-badges">
             {item.duplicateOfId && (
@@ -91,12 +100,15 @@ export function ItemCard({
               >
                 Edit
               </button>
-              <ImageCorrection
-                itemId={item.id}
-                originalImageUrl={item.originalImageUrl}
-                canUndo={item.canUndo}
-                variant="icon"
-              />
+              {/* Nothing to correct until the clean photo exists. */}
+              {!item.cleaning && (
+                <ImageCorrection
+                  itemId={item.id}
+                  originalImageUrl={item.originalImageUrl}
+                  canUndo={item.canUndo}
+                  variant="icon"
+                />
+              )}
             </div>
           )}
           <div className="overlay-info">

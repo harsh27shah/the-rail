@@ -57,4 +57,6 @@ export interface Item {
   source: string | null;
   /** Epoch ms. */
   added: number;
+  /** True while the piece is new and its clean photo hasn't replaced the original yet (lib/cleaning.ts). */
+  cleaning?: boolean;
 }

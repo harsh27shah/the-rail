@@ -60,8 +60,11 @@ export function onboardingProgress(items: Item[], seenOutfits: boolean): Onboard
     return { kind: "building", total, target: STARTER_TOTAL, rows, message: unlockMessage(missingTops, missingBottoms) };
   }
 
-  // Ready. Point at the newest top: the piece they have most recently been looking at.
-  const newestTop = eligible.filter((i) => i.category === "Tops").sort((a, b) => b.added - a.added)[0];
+  // Ready. Point at the newest top: the piece they have most recently been looking at. Prefer one whose
+  // clean photo is ready, so the card never shows a raw original; only if every top is still being
+  // cleaned does it fall back to the newest one.
+  const tops = eligible.filter((i) => i.category === "Tops").sort((a, b) => b.added - a.added);
+  const newestTop = tops.find((i) => !i.cleaning) ?? tops[0];
   const outerwear = row("Outerwear");
   const missingOuterwear = Math.max(0, outerwear.target - outerwear.have);
   return {

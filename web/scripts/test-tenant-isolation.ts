@@ -18,6 +18,7 @@ import {
   deleteItems,
   findDuplicateCandidates,
   flagDuplicate,
+  getCleaningIds,
   getDuplicateQueue,
   getItem,
   getItemImagePaths,
@@ -190,6 +191,14 @@ async function main() {
   await saveReady(A, o2, someOutfits, 2);
   await deleteItems(A, [o2]);
   check("deleting an item takes its saved outfits with it", (await loadSet(A, o2)) === null);
+
+  console.log("\nThe Add page's \"still cleaning?\" check");
+  const fresh = await createItem(A, input("A's fresh photo"), new File([Buffer.from("not really a photo")], "fresh.jpg", { type: "image/jpeg" }));
+  check("getCleaningIds(A) lists A's own just-added piece", (await getCleaningIds(A, [fresh])).includes(fresh));
+  check("getCleaningIds(B, A's piece) → nothing (can't see another account's pieces)", (await getCleaningIds(B, [fresh])).length === 0);
+  check("getCleaningIds(A, a piece with no photo) → nothing", (await getCleaningIds(A, [a1])).length === 0);
+  check("getCleaningIds(A, no ids) → nothing", (await getCleaningIds(A, [])).length === 0);
+  await deleteItems(A, [fresh]);
 
   console.log("\nRow-level security (the second layer)");
   const url = process.env.SUPABASE_URL!;

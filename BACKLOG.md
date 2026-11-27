@@ -296,9 +296,10 @@ say so. Items you'd already struck through are listed as done.
   Add page gives no guidance. A how-to hint is easy; an actual Apple Photos import isn't
   something I know a web equivalent of Google's picker for (not checked).
 - [ ] **Disclaimer that the cleaned-up photos are AI-generated, not photo-realistic.** Open.
-- [ ] **Loading state while a photo is being cleaned up, with no refresh needed.** Open. Today the
-  original shows first and the cleaned photo only appears on the next page load (a
-  deliberate no-polling choice, PROJECT.md §5 item 5) — which is the problem you describe.
+- [x] **Loading state while a photo is being cleaned up, with no refresh needed.** **Built and checked
+  locally 2026-11-27, awaiting an upload** (PROJECT.md §5 item 34): a new piece shows a "Cleaning up
+  photo" placeholder instead of the original, and the clean photo swaps in by itself. This replaces the
+  old deliberate no-polling choice (§5 item 5). Ranked first in the "fix before inviting friends" list.
 - [ ] **Let users improve image generation:**
   - [ ] by pasting the URL of the item they bought, or a similar photo from the web;
   - [ ] by taking a new, clearer photo to regenerate from;
@@ -406,11 +407,13 @@ say so. Items you'd already struck through are listed as done.
   converted — but whether the server's image library can decode genuine HEIC from an iPhone
   is untested (the fallback is a clear error, not a crash). Safari usually converts to JPEG
   first, so this may never matter.
-- [ ] **One photo at a time, no resume.** A 50-photo import is slow, and closing the tab drops the
-  rest. → Fine now; revisit when bulk runs get big.
-- [ ] **Faster, more visual photo upload.** Today it's a text line ("Reading photo 3 of 8…").
-  Wanted: show the actual photos as they upload and get worked on (thumbnails with a status
-  each: uploading, reading, cleaning up, done), and make the whole run faster.
+- [ ] **No resume: closing the tab or switching apps mid-batch drops the rest.** Photos now go three at a
+  time (PROJECT.md §5 item 35), but the browser still drives the run, so an iPhone pausing a background tab
+  stalls it. → Phase 2: upload everything quickly, then read and clean in the background on the server and
+  show progress from there, so the person can leave. Bigger change; do it once real friends hit this.
+- [x] ~~**Faster, more visual photo upload.**~~ **Built and checked locally 2026-11-27, awaiting an upload**
+  (§5 item 35): a row per photo with its thumbnail, stage and the pieces it became, three at a time,
+  straight to the rail when the last is read. Still open from it: a per-row "try again" for failed photos.
 - [ ] **Baseball cap catalogued as a Top** (once, on the rain-jacket photo). Accessories are meant to
   be skipped. Not obviously caused by recent changes. → Watch for a repeat; tighten the
   accessories rule if it does.

@@ -6,6 +6,7 @@ import { pairingsFor } from "@/lib/pairings";
 import { eligibleItems, isStale, wardrobeReadiness } from "@/lib/outfits";
 import type { Item } from "@/lib/types";
 import { isBeingGenerated, loadSet } from "@/lib/outfit-store";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { ImageCorrection } from "@/components/ImageCorrection";
 import { MarkDuplicate } from "@/components/MarkDuplicate";
 import { OutfitsSection, type OutfitsState } from "@/components/OutfitsSection";
@@ -69,8 +70,16 @@ export default async function ItemDetailPage({
 
       <div className="detail-top">
         <div className="detail-image">
-          {item.imageUrl && <img src={item.imageUrl} alt="" />}
+          {item.cleaning ? (
+            <div className="cleaning" role="status">
+              <span>Cleaning up photo</span>
+            </div>
+          ) : (
+            item.imageUrl && <img src={item.imageUrl} alt="" />
+          )}
         </div>
+        {/* Checks back by itself while the clean photo is on its way (lib/cleaning.ts). */}
+        <AutoRefresh active={!!item.cleaning} />
         <div className="detail-info">
           <h2>{item.name}</h2>
           <div className="detail-sub">
@@ -116,11 +125,13 @@ export default async function ItemDetailPage({
             <Link href={`/item/${item.id}/edit`} className="btn ghost">
               Edit details
             </Link>
-            <ImageCorrection
-              itemId={item.id}
-              originalImageUrl={item.originalImageUrl}
-              canUndo={item.canUndo}
-            />
+            {!item.cleaning && (
+              <ImageCorrection
+                itemId={item.id}
+                originalImageUrl={item.originalImageUrl}
+                canUndo={item.canUndo}
+              />
+            )}
             <MarkDuplicate
               itemId={item.id}
               category={item.category}
@@ -138,7 +149,13 @@ export default async function ItemDetailPage({
         </div>
       </div>
 
-      {outfitsState ? (
+      {item.cleaning ? (
+        // Outfits are worked out from this piece's photo, so they wait for the clean one.
+        <div className="pairing-section">
+          <h3>Outfits</h3>
+          <p className="pairing-empty">Outfits will appear once this photo is ready.</p>
+        </div>
+      ) : outfitsState ? (
         <OutfitsSection key={outfitsState.kind} itemId={item.id} state={outfitsState} />
       ) : (
         <div className="pairing-section">

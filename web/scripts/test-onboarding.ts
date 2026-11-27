@@ -86,6 +86,20 @@ check("ready points at the NEWEST top", (() => {
   const p = onboardingProgress([...tops, ...many("Bottoms", 5)], false);
   return p?.kind === "ready" && p.piece.id === tops[1].id && p.piece.imageUrl.length > 0;
 })());
+check("ready prefers a top whose clean photo is ready over a newer one still being cleaned", (() => {
+  const tops = [withAdded("Tops", 100), withAdded("Tops", 200), withAdded("Tops", 300), withAdded("Tops", 400), withAdded("Tops", 500, { cleaning: true })];
+  const p = onboardingProgress([...tops, ...many("Bottoms", 5)], false);
+  return p?.kind === "ready" && p.piece.id === tops[3].id;
+})());
+check("ready still works if every top is being cleaned (falls back to the newest)", (() => {
+  const tops = [100, 200, 300, 400, 500].map((t) => withAdded("Tops", t, { cleaning: true }));
+  const p = onboardingProgress([...tops, ...many("Bottoms", 5)], false);
+  return p?.kind === "ready" && p.piece.id === tops[4].id;
+})());
+check("a piece being cleaned still counts towards the goal (it exists, it is only waiting on its photo)", (() => {
+  const p = onboardingProgress([...many("Tops", 4), withAdded("Tops", 1, { cleaning: true }), ...many("Bottoms", 5)], false);
+  return p?.kind === "ready";
+})());
 check("footwear never counts towards or against the goal", kind([...many("Tops", 5), ...many("Bottoms", 5), ...many("Footwear", 4)]) === "ready");
 
 check("message wording: one of each", unlockMessage(1, 1) === "1 more top and 1 more bottom unlock outfits.");

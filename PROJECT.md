@@ -1357,6 +1357,79 @@ Suggested build order:
       background removals, 48 duplicate checks, 8 outfit generations, then pieces removed), not a runaway.
       It does show duplicate checking is the biggest cost per piece (BACKLOG).
 
+34. 🟡 **A placeholder while a new piece's photo is cleaned up, and the clean photo appears by itself — built
+    and checked locally, not live** (2026-11-27). Before this, a new piece showed the person's ORIGINAL
+    photo (a selfie, a messy background, a whole collage) until a reload, because the background cleaning
+    job (item 5) never told the page. It was the first thing a new friend would see, right after step 3 of
+    the onboarding lands them on the rail.
+    - **What people see now:** a calm "Cleaning up photo" tile instead of the original, with the piece's name
+      and category already shown underneath (the tagging is done by then). The tile swaps to the clean photo by
+      itself, usually within 10 to 20 seconds, and the same on the piece's own page. The pulse animation
+      switches off for people who prefer reduced motion.
+    - **How:** the server marks a piece `cleaning` (`lib/cleaning.ts`, `isCleaning`): its photo is still the
+      original AND it was added less than 90 seconds ago (the server's clock, not the phone's). While any piece on
+      the page is cleaning, `components/AutoRefresh.tsx` re-reads the page every 3 seconds; it stops when nothing
+      is flagged, pauses while the tab is hidden, checks the moment the person comes back (iPhones pause
+      background tabs), and has a hard stop of about two minutes.
+    - **Failure is safe:** if cleaning fails or never finishes, the placeholder gives up after 90 seconds and the
+      original shows, exactly as before. Old pieces whose photo equals the original are never treated as in
+      progress. No database change.
+    - **Knock-on changes so the raw photo never leaks elsewhere:** "Not quite right?" is hidden on a piece until
+      its clean photo exists; a piece's outfits wait ("Outfits will appear once this photo is ready.") until its
+      clean photo exists; pieces still being cleaned are left out of other pieces' outfits (the stylist would be
+      judging a selfie or collage); the onboarding "Ready" card prefers a top whose clean photo is ready. A piece
+      being cleaned still counts towards the 12-piece goal.
+    - **Checked:** `scripts/test-cleaning.ts` (10 checks: inside the window, exactly at its end, old and reset
+      pieces, missing photo, clock oddity); 3 new onboarding checks (43 total); 2 new outfit checks (45). On the
+      iPhone simulator, a real upload through the iPhone's photo picker: the new tile showed "Cleaning up photo",
+      then the clean jumper replaced it with no reload, and the Ready card switched to the new piece. A deliberately
+      stuck piece (added 70 seconds earlier, never cleaned) showed the placeholder for the 20 seconds that
+      remained, then fell back to the original, and the server logs showed the phone stopped asking.
+    - **Known limits:** a piece whose cleaning really failed shows its original again after 90 seconds (the
+      "Not quite right?" button is the safety net, as before). Checking every 3 seconds is a plain page re-read
+      (a few database queries per check for the few seconds it lasts), not a live connection. The duplicate-check
+      picker still shows a raw photo for a piece mid-cleaning.
+
+35. 🟡 **Add page: a row per photo, three at a time — built and checked locally, not live** (2026-11-27). The
+    text line "Reading photo 3 of 8…" is replaced by a list, modelled on how Alta shows an upload, and the photos
+    are now worked on three at once instead of one after another (supersedes the "in sequence" part of item 10).
+    - **What people see:** each photo is a row with its own thumbnail, a stage (Waiting, Uploading, Reading,
+      Cleaning up, Done) and a three-segment bar (upload, read, clean up); once read, the row lists the pieces it
+      became ("Cream quarter-zip sweatshirt, Navy tailored trousers, White leather sneakers"). A line above the
+      list says where the batch is ("4 of 6 photos read · 2 cleaning up") with a rough "about 40 seconds left"
+      once two photos have finished (average of what the finished ones really took, no fake countdown). While a
+      batch runs the file picker is hidden and the page scrolls to the list; a "keep this page open" line stays.
+    - **"Which one is you?" no longer blocks the batch.** A photo with several people waits as "Needs you: tap
+      which one is you" while the others carry on; the picker appears above the list, one photo at a time. Nothing
+      about the rule changed (item 18): the person taps, nothing is guessed.
+    - **Where it ends (owner's call): straight to the rail** once the last photo has been read; the "Cleaning up
+      photo" placeholders (item 34) carry on there. The existing "where next" rule (`afterUploadDestination`) is
+      unchanged, so if any photo failed or was skipped the person stays here and sees which rows failed and why,
+      with a "Go to the rail" button. The "Cleaning up" stage in each row is driven by a small check every 3
+      seconds (same test as the rail, `getCleaningIds` in `lib/items.ts`), paused while the tab is hidden.
+    - **Found while building: Next.js runs Server Actions one at a time from the browser** (this version's docs,
+      `server-actions.md`), so three photos "in parallel" would have lined up single file, and even the quick
+      upload-link calls would have waited behind a 15-second read. So the Add page's calls are now plain API routes
+      (`src/app/api/add/{upload,photo,discard,cleaning}`), and the old `app/add/actions.ts` became `lib/add-photo.ts`
+      (ordinary functions taking the user's id; the logic is unchanged). Each route checks sign-in itself (401 when
+      signed out) and insists on a JSON request (a cross-site form post can't send one without the browser asking
+      first, which Server Actions had built in). No new database change.
+    - **Checked:** `scripts/test-upload-queue.ts` (43 checks: never more than 3 at once, a thrown error doesn't
+      stop the rest, a slow photo doesn't hold up its neighbour, summary and time-left wording, the cleaning
+      hand-off, the failed/skipped stay-on-page rule); `scripts/test-tenant-isolation.ts` gained 4 checks (45) for
+      the cleaning check; the routes were hit directly (signed out 401; wrong content type 415; bad body 400;
+      another account's file path, or someone else's piece ids, refused or empty). In the iPhone simulator with six
+      real photos (four solo, two couples) through the iPhone's own photo picker: three uploaded together, three
+      different photos waited on "tap which one is you" without stopping the rest, rows moved Uploading, Reading,
+      Cleaning up, Done, and it landed on the rail with "Hung 19 pieces on your rail" and placeholders still
+      arriving. A deliberately broken file showed its reason on its row and kept the page. The rest of the suites
+      (cleaning 10, onboarding 43, outfits 45, ingest 21) still pass.
+    - **Known limits:** the page still has to stay open (an iPhone can pause a background tab mid-batch; the real
+      fix is processing in the background after a quick upload, tracked in `BACKLOG.md`); no per-row retry button
+      (a failed photo is re-picked by hand); the time-left line is a rough average and ignores photos waiting on
+      the person; a photo the detector reports as having two people (a half-visible figure at the edge of a mirror
+      selfie, seen once) still asks "which one is you?", same as before.
+
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.
 

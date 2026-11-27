@@ -1,4 +1,5 @@
 import "server-only";
+import { isCleaning } from "./cleaning";
 import { getSupabaseAdmin } from "./supabase";
 import { MOCK_ITEMS } from "./mock-data";
 import type { Category, Item, Pattern, Season } from "./types";
@@ -76,6 +77,11 @@ function rowToItem(row: Row): Item {
     duplicateConfidence: row.duplicate_confidence,
     source: row.source,
     added: new Date(row.added).getTime(),
+    cleaning: isCleaning({
+      imagePath: row.image_path,
+      originalImagePath: row.original_image_path,
+      addedMs: new Date(row.added).getTime(),
+    }),
   };
 }
 
@@ -101,6 +107,27 @@ export async function getItem(userId: string, id: string): Promise<Item | null> 
   const { data, error } = await admin.from("items").select("*").eq("id", id).eq("user_id", userId).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? rowToItem(data as Row) : null;
+}
+
+/**
+ * Which of these pieces are still having their clean photo made (the same test the rail uses, see
+ * lib/cleaning.ts). Only the caller's own pieces are looked at; an id that isn't theirs, or no longer
+ * exists, is simply not in the answer. The Add page asks this every few seconds to move each photo's row
+ * from "Cleaning up" to "Done".
+ */
+export async function getCleaningIds(userId: string, ids: string[]): Promise<string[]> {
+  const admin = getSupabaseAdmin();
+  if (!admin || ids.length === 0) return [];
+
+  const { data, error } = await admin
+    .from("items")
+    .select("id, image_path, original_image_path, added")
+    .eq("user_id", userId)
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+  return (data as Pick<Row, "id" | "image_path" | "original_image_path" | "added">[])
+    .filter((r) => isCleaning({ imagePath: r.image_path, originalImagePath: r.original_image_path, addedMs: new Date(r.added).getTime() }))
+    .map((r) => r.id);
 }
 
 export interface ItemInput {

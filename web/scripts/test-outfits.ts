@@ -178,7 +178,17 @@ async function main() {
   check("a big wardrobe change triggers regeneration", isStale(saved, [...e, ...Array.from({ length: 5 }, (_, i) => mk(`N${i}`, "Tops"))], tops[0].id));
   check("a hero that is itself flagged as a duplicate does not make its own outfits stale", !isStale(saved, e.filter((i) => i.id !== tops[0].id), tops[0].id));
 
-  console.log(`\n${passed} passed, ${failed} failed`);
+    // ── pieces still having their photo cleaned are left out of outfits ──
+  {
+    const hero = tops[0];
+    const cleaningBottom = { ...mk("Still cleaning jeans", "Bottoms"), cleaning: true };
+    const plan = planFor(hero, [...wardrobe, cleaningBottom]);
+    check("a piece whose photo is still being cleaned is not offered to the stylist", !!plan && !plan.candidates.some((c) => c.item.id === cleaningBottom.id));
+    const fine = planFor(hero, wardrobe);
+    check("the same wardrobe without it still plans normally", !!fine && fine.candidates.length > 0);
+  }
+
+console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
 main();

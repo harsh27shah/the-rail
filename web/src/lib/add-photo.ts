@@ -1,13 +1,11 @@
-"use server";
-
+import "server-only";
 import { after } from "next/server";
-import { requireUser } from "@/lib/auth";
 import { compareGarmentPhotos, tagPhoto, type TagPhotoResult, type TaggedFields } from "@/lib/anthropic";
 import { cropToPersonBox } from "@/lib/crop";
 import { detectPeople, extractGarmentImage, type PersonBox } from "@/lib/gemini";
 import { analysePhoto, BLANK_GARMENT, normalizeUpload, shrinkForAi } from "@/lib/ingest";
 import { UploadRejected, createUploadTarget, discardUpload, isOwnUploadPath, readUpload } from "@/lib/incoming";
-import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, replaceItemImage } from "@/lib/items";
+import { createItem, downloadImage, findDuplicateCandidates, flagDuplicate, getCleaningIds, replaceItemImage } from "@/lib/items";
 import { asCategory, asPattern, asSeasons } from "@/lib/tag-fields";
 import { trackUsageFor, withUsageUser } from "@/lib/usage";
 
@@ -16,8 +14,18 @@ import { trackUsageFor, withUsageUser } from "@/lib/usage";
 // spike notes), so this is a wide safety margin, not a tight threshold.
 const DUPLICATE_CONFIDENCE_THRESHOLD = 0.6;
 
+/**
+ * The Add page's server work, as plain functions that take the signed-in user's id. They are called by
+ * the routes under src/app/api/add/*, each of which checks who is asking first.
+ *
+ * Why routes and not Server Actions: Next runs Server Actions from the browser one at a time, so three
+ * photos "in parallel" would have lined up single file (and even the quick upload-link calls would have
+ * waited behind a 15-second read). Plain fetch calls to routes really do run side by side.
+ * Every function here is scoped to `userId`.
+ */
+
 export type AddPhotoResult =
-  | { kind: "added"; ids: string[] }
+  | { kind: "added"; ids: string[]; names: string[] }
   | { kind: "error"; error: string }
   | { kind: "needs-selection"; people: PersonBox[] };
 
@@ -28,12 +36,11 @@ export type CreateUploadResult =
 /**
  * Step zero: hands the browser a one-time link to upload one photo straight to storage (see
  * lib/incoming.ts for why it doesn't go through the server). The browser then passes the
- * returned `path` to addPhotoAction instead of the photo itself.
+ * returned `path` to addPhotoFor instead of the photo itself.
  */
-export async function createUploadAction(info: { filename: string; type: string; size: number }): Promise<CreateUploadResult> {
-  const user = await requireUser();
+export async function createUploadFor(userId: string, info: { filename: string; type: string; size: number }): Promise<CreateUploadResult> {
   try {
-    const target = await createUploadTarget(user.id, info);
+    const target = await createUploadTarget(userId, info);
     return { ok: true, ...target };
   } catch (e) {
     if (e instanceof UploadRejected) return { ok: false, error: e.message };
@@ -42,10 +49,24 @@ export async function createUploadAction(info: { filename: string; type: string;
   }
 }
 
+/**
+ * Of the pieces just added, which are still having their clean photo made? The Add page asks every few
+ * seconds so each photo's row can move from "Cleaning up" to "Done". Read-only, and only ever about the
+ * caller's own pieces. Any failure answers "none", so a hiccup can't leave a row stuck.
+ */
+export async function cleaningStatusFor(userId: string, ids: string[]): Promise<string[]> {
+  const clean = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id)).slice(0, 100);
+  try {
+    return await getCleaningIds(userId, clean);
+  } catch (e) {
+    console.error("[add] couldn't check cleaning status:", e);
+    return [];
+  }
+}
+
 /** Throws away an uploaded photo that won't be used (the owner skipped it, or something failed). */
-export async function discardUploadAction(path: string): Promise<void> {
-  const user = await requireUser();
-  await discardUpload(user.id, path);
+export async function discardUploadFor(userId: string, path: string): Promise<void> {
+  await discardUpload(userId, path);
 }
 
 /**
@@ -53,7 +74,7 @@ export async function discardUploadAction(path: string): Promise<void> {
  * catalogueGarments below). The Add flow (src/components/AddPhotosForm.tsx) calls this once
  * per selected photo, in sequence, rather than posting an entire multi-photo selection in a
  * single request: a batch of full-resolution phone photos would blow straight past the
- * Server Action body-size limit — and Vercel's own request-body ceiling — in production,
+ * request body-size limit — and Vercel's own request-body ceiling — in production,
  * even though it works locally. One photo per request keeps every request small and every
  * function invocation short (tagging only; the image extraction still runs in the background
  * via after()). The client drives the loop, the progress display, and the navigation.
@@ -63,15 +84,13 @@ export async function discardUploadAction(path: string): Promise<void> {
  * wardrobe, confirmed as a real failure mode before this check existed (PROJECT.md §5).
  * Instead this returns `needs-selection` with each person's approximate location, and the
  * client asks "which one is you?" (src/components/AddPhotosForm.tsx) before calling
- * addPhotoWithPersonAction below with the answer. Purely spatial ("where is each body in
+ * addPhotoWithPersonFor below with the answer. Purely spatial ("where is each body in
  * this one photo, right now") — nothing about what anyone looks like is ever stored or
  * reused across photos.
  */
-export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult> {
-  const user = await requireUser();
-  trackUsageFor(user.id);
-  const uploadPath = String(formData.get("uploadPath") ?? "");
-  if (!isOwnUploadPath(user.id, uploadPath)) {
+export async function addPhotoFor(userId: string, uploadPath: string): Promise<AddPhotoResult> {
+  trackUsageFor(userId);
+  if (!isOwnUploadPath(userId, uploadPath)) {
     return { kind: "error", error: "that photo didn't come through" };
   }
 
@@ -80,7 +99,7 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
   // while the owner picks which one is them, and deleted at the next step (or swept after two hours).
   let keepForSelection = false;
   try {
-    const photo = await readUpload(user.id, uploadPath);
+    const photo = await readUpload(userId, uploadPath);
     // Trust the bytes, not the browser's/Google's label — see normalizeUpload.
     const normalized = await normalizeUpload(photo);
     // `file` (full resolution) is what gets stored; `base64`/`mimeType` below are the copy sent
@@ -103,17 +122,17 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
     }
     if (analysis.kind === "error") return { kind: "error", error: analysis.error };
 
-    return await catalogueGarments(user.id, analysis.garments, file, base64, mimeType);
+    return await catalogueGarments(userId, analysis.garments, file, base64, mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong reading that photo" };
   } finally {
-    if (!keepForSelection) await discardUpload(user.id, uploadPath);
+    if (!keepForSelection) await discardUpload(userId, uploadPath);
   }
 }
 
 /**
  * Step two of the multi-person flow: the owner tapped the box that's them in
- * addPhotoAction's "needs-selection" response. Crops the ORIGINAL photo down to that one
+ * addPhotoFor's "needs-selection" response. Crops the ORIGINAL photo down to that one
  * region — a real pixel crop (lib/crop.ts), not a Gemini regeneration, deliberately, so
  * nothing about the garment can drift the way a regeneration sometimes does (see the
  * duplicate-detection saga in PROJECT.md §5 for why that's a real risk) — then runs the
@@ -121,28 +140,25 @@ export async function addPhotoAction(formData: FormData): Promise<AddPhotoResult
  * never stored; only the crop becomes this item's photo, so whoever else was in the
  * original frame never touches storage at all.
  */
-export async function addPhotoWithPersonAction(formData: FormData): Promise<AddPhotoResult> {
-  const user = await requireUser();
-  trackUsageFor(user.id);
-  const uploadPath = String(formData.get("uploadPath") ?? "");
-  const boxRaw = formData.get("box");
-  if (!isOwnUploadPath(user.id, uploadPath)) {
+export async function addPhotoWithPersonFor(userId: string, uploadPath: string, boxRaw: unknown): Promise<AddPhotoResult> {
+  trackUsageFor(userId);
+  if (!isOwnUploadPath(userId, uploadPath)) {
     return { kind: "error", error: "that photo didn't come through" };
   }
 
   let box: PersonBox["box"];
   try {
-    const parsed = JSON.parse(String(boxRaw));
-    if (!Array.isArray(parsed) || parsed.length !== 4) throw new Error("bad shape");
+    const parsed = boxRaw;
+    if (!Array.isArray(parsed) || parsed.length !== 4 || !parsed.every((n) => typeof n === "number" && Number.isFinite(n))) throw new Error("bad shape");
     box = parsed as PersonBox["box"];
   } catch {
     // The Add flow moves on to the next photo after an error, so nothing will use this one again.
-    await discardUpload(user.id, uploadPath);
+    await discardUpload(userId, uploadPath);
     return { kind: "error", error: "That selection didn't come through right — try again" };
   }
 
   try {
-    const photo = await readUpload(user.id, uploadPath);
+    const photo = await readUpload(userId, uploadPath);
     const original = await normalizeUpload(photo);
     const cropped = await cropToPersonBox(original.base64, original.mimeType, box);
     const croppedAi = await shrinkForAi({ base64: cropped.data, mimeType: cropped.mimeType });
@@ -161,12 +177,12 @@ export async function addPhotoWithPersonAction(formData: FormData): Promise<AddP
     const croppedFile = new File([Buffer.from(cropped.data, "base64")], "cropped.jpg", {
       type: cropped.mimeType,
     });
-    return await catalogueGarments(user.id, tagResult.garments, croppedFile, croppedAi.base64, croppedAi.mimeType);
+    return await catalogueGarments(userId, tagResult.garments, croppedFile, croppedAi.base64, croppedAi.mimeType);
   } catch (e) {
     return { kind: "error", error: e instanceof Error ? e.message : "something went wrong with that selection" };
   } finally {
     // The full multi-person photo's job is done; only the single-person crop lives on.
-    await discardUpload(user.id, uploadPath);
+    await discardUpload(userId, uploadPath);
   }
 }
 
@@ -183,6 +199,7 @@ async function catalogueGarments(
   mimeType: string
 ): Promise<AddPhotoResult> {
   const ids: string[] = [];
+  const names: string[] = [];
   for (const t of tagged) {
     const category = asCategory(t.category);
     const name = t.name || "Untitled piece";
@@ -206,6 +223,7 @@ async function catalogueGarments(
       photo
     );
     ids.push(id);
+    names.push(name);
 
     const description = [color, name].filter(Boolean).join(" ") || "garment";
     after(() => withUsageUser(userId, async () => {
@@ -252,5 +270,5 @@ async function catalogueGarments(
     }));
   }
 
-  return { kind: "added", ids };
+  return { kind: "added", ids, names };
 }

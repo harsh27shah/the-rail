@@ -2,8 +2,8 @@
 
 Small and not-yet-urgent things noticed along the way, parked so they don't get lost.
 Not a roadmap (that's PROJECT.md §2 and the PRD). Tick things off as they're done; add
-new ones at the bottom of the right section. Last updated 2026-11-17 (PRD "MVP laundry list"
-tab merged in).
+new ones at the bottom of the right section. Last updated 2026-11-27 (roadmap use cases added;
+earlier: 2026-11-17, PRD "MVP laundry list" tab merged in).
 
 Each line: what it is → why it's parked / what triggers doing it.
 
@@ -198,6 +198,63 @@ on that item's page. It replaces today's single-item "styles well with" suggesti
 - [ ] Measuring "suggestions actually worn" (the north star) and wear logging. Not now, but every
   week without wear data is data lost (PROJECT.md §2).
 - [ ] Validate shoe and outerwear pairings; so far only top-and-bottom pairs have been rated.
+
+## Roadmap use cases (from PROJECT.md §2 and the PRD feature table)
+
+The big capabilities that are not started and aren't tracked elsewhere in this file. Added 2026-11-27 so
+the whole picture lives in one place. Priorities are the PRD's (P1 next, P2 later, P3 someday). Things
+already listed above (generic model = M2, own avatar = M3, "interested / not interested", describe the
+vibe, seasonality, wear logging) are not repeated; they're pointed to instead. Where the landing page
+promises one of these, its name there is noted, so the page stays honest as things ship.
+
+**P1**
+- [ ] **Dress for an occasion.** Type a request ("dinner in Lisbon", "first date") and get an outfit
+  built from what you own. A close cousin of "describe the vibe" under recommended outfits. Likely
+  route: the same outfit engine (`lib/outfits.ts`) with the request added to the stylist's prompt.
+- [ ] **Outfit of the day, with weather and push notifications.** A daily suggestion by occasion and
+  weather. Needs weather and seasonality ("deliberately later" under recommended outfits), a way to
+  send notifications to a phone (the installed home-screen app matters here), and **wear logging
+  first** (see the product questions section), or the north-star metric can't be measured.
+- [ ] **Personalise suggestions from what people accept and reject.** Landing page name: "Outfits that
+  learn your taste". Starts with the "interested / not interested" button; the rating study that
+  tests suggestion quality is paused (see Paused).
+- [ ] **Build a style profile from looks or influencers the person likes.** Landing page name: "Style
+  inspiration". The parked "what's your style?" quiz belongs here. Not designed yet. Open: where the
+  inspiration photos come from, and the care other people's photos need.
+- [ ] **Wardrobe-level gap analysis: what to buy next.** Recommend the pieces that would unlock the most
+  new outfits. Landing page name: "Smarter shopping". Builds on the coverage minimums
+  (`lib/coverage.ts`) but needs counting outfits, not just pieces.
+- [ ] **"Shop this new item to unlock outfits with something you already own."** "Buy this and you get N
+  new outfits." Needs product data (retailer pages are flaky to read: see the Zara item) and outfit
+  counting for an item you don't own yet.
+- [ ] **Different brands and colours in shopping suggestions, at item level.** Offer options, not one
+  pick.
+- [ ] **Favourite ("starred") outfits.** Star an outfit and it floats up. Also unlocks "starred items to
+  the front" from the PRD list below.
+
+**P2**
+- [ ] **Virtual try-on.** Outfits on the person's own photo. The most expensive item on the list:
+  photorealism is hard. Full-resolution originals are already stored for it. Treated as a shareable
+  growth feature, not core utility. Landing page name: "Photorealistic avatars" (also see M3).
+- [ ] **Trip planning.** Where, when and for how long, then a capsule packing list from the wardrobe, plus
+  shopping inspiration seeded by the destination. No design is recorded yet. Likely route: weather and
+  occasion mix per day, reusing the outfit engine.
+- [ ] **Browser or shopping plug-in.** Flags new styles, or "you own something like this", while
+  shopping.
+- [ ] **In-person camera point-and-capture.** Point your phone at something in a shop: "do I already own
+  this or similar?" Needs visual similarity against the wardrobe: the same hard problem as duplicate
+  detection (see its item).
+- [ ] **Find similar while shopping.** Budget- and material-matched alternatives.
+
+**P3**
+- [ ] **Monthly upgrade suggestions**, **influencer look-alike**, **gift wishlist.**
+- [ ] **Guided new-user flow through styling decisions.** Partly overlaps the first-run onboarding (PROJECT.md
+  §5 item 32), which is about getting pieces in, not about styling decisions.
+
+**Carried over from the roadmap**
+- Monetisation (referral take-rate, white-label to brands, resale-flagging) is for later and shouldn't
+  shape technical decisions now.
+- Don't start with try-on or shopping integration: they're demo-shaped and would eat the timeline.
 
 ## From the PRD: "MVP laundry list and amendments"
 

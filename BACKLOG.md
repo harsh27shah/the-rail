@@ -11,12 +11,12 @@ Each line: what it is → why it's parked / what triggers doing it.
 
 ## Do soon (real user-facing breakage, waiting on a go-ahead)
 
-- [ ] **First-run onboarding, steps 2 to 4** (step 1 is built, PROJECT.md §5 item 32). Agreed order,
-  decided 2026-11-25; goal is 12 pieces (5 tops, 5 bottoms, 2 outerwear), shoes a bonus:
-  2. **A progress panel on the rail** while someone has between 1 and 11 pieces, showing the split, e.g.
-     "7 of 12. Still need 3 bottoms and 2 outerwear" (it uses `coverageGap` / `STARTER_PLAN`). Then, once
-     they have enough, an "Open any piece to see outfits" prompt pointing at one specific piece,
-     dismissed once they've looked.
+- [ ] **First-run onboarding, steps 3 and 4** (steps 1 and 2 are built, PROJECT.md §5 item 32; step 2 is
+  built locally and awaiting an upload). Agreed order, decided 2026-11-25; goal is 12 pieces (5 tops,
+  5 bottoms, 2 outerwear), shoes a bonus; "ready" is at 5 tops + 5 bottoms (10), decided 2026-11-27:
+  2. ~~A progress panel on the rail~~ (done: building / ready / gone).
+  Small follow-up: the item page's own outfits text says "It takes a few seconds", but the first
+  outfits can take up to about half a minute; reword it to match.
   3. **After the first upload**, a message instead of just dropping them on the rail: "3 pieces hung.
      2 more tops and 5 more bottoms unlock outfits."
   4. **(Later) pieces and "seen outfits" next to each friend on the Invite page**, so the owner can see
@@ -178,6 +178,15 @@ on that item's page. It replaces today's single-item "styles well with" suggesti
 - Each outfit carries a one-line rationale.
 - The hover pills on the grid are removed once the outfits on the item page are built and
   look right (not before). **Done 2026-11-25** (owner approved; pending going live).
+
+**Bugs**
+- [ ] **Outfits regenerated after logging out and back in** (reported 2026-11-25). An item whose
+  outfits were already made got new ones (and a new AI bill) on the next sign-in. Wanted: make
+  outfits once per item and keep them on the person's account, only redoing them when the
+  wardrobe changes or they give interested / not-interested signals. They're already meant to
+  be saved per account (PROJECT.md §5 item 27), so this looks like a bug, not missing design.
+  Not investigated. Things to check: the "wardrobe grew by 5" rule, the version-change rule,
+  or the saved-outfits table not being set up where this happened.
 
 **Deliberately later**
 - [ ] Seasonality / weather in outfit choice (outerwear in summer is currently possible).

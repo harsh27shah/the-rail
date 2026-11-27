@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { getItems, isDatabaseConnected } from "@/lib/items";
+import { onboardingProgress } from "@/lib/onboarding";
+import { userHasSeenOutfits } from "@/lib/outfit-store";
 import { Storefront } from "@/components/Storefront";
 
 // Without this, Next.js pre-renders this page once at build/deploy time and serves that
@@ -9,8 +11,11 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await requireUser();
-  const items = await getItems(user.id);
+  const [items, seenOutfits] = await Promise.all([getItems(user.id), userHasSeenOutfits(user.id)]);
   const connected = isDatabaseConnected();
+  // The first-run progress panel: null for an empty rail (the welcome covers it) and for anyone
+  // who has already seen outfits.
+  const progress = onboardingProgress(items, seenOutfits);
 
   return (
     <>
@@ -25,7 +30,7 @@ export default async function HomePage() {
           </span>
         </div>
       )}
-      <Storefront items={items} />
+      <Storefront items={items} progress={progress} />
     </>
   );
 }

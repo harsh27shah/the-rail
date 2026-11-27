@@ -12,7 +12,7 @@
 // (`--conditions=react-server` lets the app's `server-only` imports load outside Next.)
 
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { claimGeneration, loadSet, saveFailed, saveReady } from "@/lib/outfit-store";
+import { claimGeneration, loadSet, saveFailed, saveReady, userHasSeenOutfits } from "@/lib/outfit-store";
 import {
   createItem,
   deleteItems,
@@ -185,6 +185,8 @@ async function main() {
   check("A's claim doesn't block B claiming B's own item", (await claimGeneration(B, p1)) === true);
   check("a second live claim on the same item is refused", (await claimGeneration(B, p1)) === false);
   check("A's saved outfits are untouched by B's activity", (await loadSet(A, o1))?.status === "ready");
+  check("userHasSeenOutfits: A has finished outfits, so true", (await userHasSeenOutfits(A)) === true);
+  check("userHasSeenOutfits: B only has an unfinished claim (and never sees A's), so false", (await userHasSeenOutfits(B)) === false);
   await saveReady(A, o2, someOutfits, 2);
   await deleteItems(A, [o2]);
   check("deleting an item takes its saved outfits with it", (await loadSet(A, o2)) === null);

@@ -8,11 +8,13 @@ import { CATEGORIES, type Category, type Item } from "@/lib/types";
 import { coverageGap } from "@/lib/coverage";
 import { ItemCard } from "./ItemCard";
 import { Welcome } from "./Welcome";
+import { OnboardingPanel } from "./OnboardingPanel";
+import type { OnboardingProgress } from "@/lib/onboarding";
 import { bulkDeleteAction } from "@/app/actions";
 
 const NEUTRALS = ["black", "white", "grey", "gray", "navy", "beige", "cream", "brown", "tan", "charcoal"];
 
-export function Storefront({ items }: { items: Item[] }) {
+export function Storefront({ items, progress = null }: { items: Item[]; progress?: OnboardingProgress | null }) {
   const router = useRouter();
   const [filter, setFilter] = useState<string>("All");
   const [query, setQuery] = useState("");
@@ -206,6 +208,8 @@ export function Storefront({ items }: { items: Item[] }) {
             </span>
           </>
       </div>
+
+      {progress && <OnboardingPanel progress={progress} />}
 
       <div className="rail" ref={railRef}>
         {duplicateCount > 0 && (

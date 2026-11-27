@@ -1298,9 +1298,39 @@ Suggested build order:
       column, no sideways scroll). Throwaway account deleted; the owner's 49 items untouched. The final
       light-theme-only version (after dark mode was moved to its own branch) was type-checked and
       tested but its Add-page tips line about Google Photos was not re-viewed in the browser.
-    - **Not done yet (next steps, in `BACKLOG.md`):** the progress panel while someone is between 1 and
-      11 pieces ("Tops 2 of 5, bottoms 0 of 5"), the "open any piece to see outfits" prompt, the message
-      after the first upload, and pieces / outfits-seen next to each friend on the Invite page.
+    - **Step 2 — the progress panel on the rail: built and checked locally, not live** (2026-11-27).
+      A card at the top of the rail with two looks, chosen by `lib/onboarding.ts`:
+      - **Building** (some pieces, not enough): "5 of 12 pieces", one line saying what unlocks outfits
+        ("2 more tops and 3 more bottoms unlock outfits."), a row per category with little boxes and a
+        count (Tops 3/5, Bottoms 2/5, Outerwear 0/2), and an "Add more pieces" button.
+      - **Ready** (decided with the owner: at **5 tops and 5 bottoms, i.e. 10 pieces, NOT at 12**, so
+        nobody is held back from outfits they could already see): "Your outfits are ready", the newest
+        top shown, a "See outfits for this piece" button, and a quiet "2 more outerwear would round out
+        your set." while outerwear is short. Outerwear never gates "ready".
+      - **Gone** once the person has seen outfits (a finished outfit set exists for them in the
+        database: `userHasSeenOutfits` in `lib/outfit-store.ts`, so it's right across phone and
+        computer), and never shown on an empty rail (the welcome covers that). A small "Hide" link is
+        remembered on that device only, per look, so moving from building to ready shows it again.
+      - **Counting follows the outfit feature:** duplicates and photo-less pieces don't count, and each
+        category counts only up to its target (12 tops and no bottoms reads 5 of 12, never 12 of 12).
+      - **Phone first:** full-width 44px-high buttons, no hover, no sideways scroll.
+      - **Checked:** `scripts/test-onboarding.ts` (25 checks, 17 for this step); two new checks in
+        `scripts/test-tenant-isolation.ts` (41 total: "has seen outfits" can't leak between accounts, and
+        only finished outfits count); and in a real browser on a throwaway account stepped through 5, 10
+        and 12 pieces, plus hide-and-reload, at desktop width and at 390px. The real path was run end to
+        end: tapping "See outfits" generated outfits, and the panel was gone from the rail afterwards.
+        Throwaway account deleted; the owner's 49 items untouched.
+      - **Found while testing:** first-time outfits took about 26 seconds in that run (one automatic
+        retry), not the 6 to 11 seconds measured earlier. The panel now says "up to half a minute".
+        The item page's own text still says "It takes a few seconds."
+      - **Also checked in the iOS Simulator** (iPhone 17, real iOS Safari, after the owner installed Xcode
+        and approved access, 2026-11-27): the building look at 5 pieces, the ready look at 10 (copy,
+        piece image, full-width button and the outerwear line all fit), a real touch tap on "See
+        outfits" opening the piece with its outfits, and the panel gone from the rail afterwards.
+        The simulator is a separate virtual phone with none of the owner's own apps or data.
+      - **Not checked:** on a real phone.
+    - **Not done yet (next steps, in `BACKLOG.md`):** the message after the first upload, and pieces /
+      outfits-seen next to each friend on the Invite page.
 
 **Do not** start with try-on or shopping integration. They're demo-shaped and will eat the
 whole timeline — confirmed P2, see §2.

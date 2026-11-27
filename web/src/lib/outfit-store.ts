@@ -114,3 +114,23 @@ export async function saveFailed(userId: string, heroItemId: string, message: st
   });
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Has this person ever had outfits worked out for any piece? Used by the first-run progress panel
+ * (lib/onboarding.ts) to know they've reached the payoff, so the panel can stop. Read from the
+ * database, not the browser, so it is right across phone and computer. Returns false if the table
+ * isn't there yet (the outfit feature is off in that case anyway).
+ */
+export async function userHasSeenOutfits(userId: string): Promise<boolean> {
+  try {
+    const { count, error } = await db()
+      .from("outfit_sets")
+      .select("hero_item_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "ready");
+    if (error) return false;
+    return (count ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
